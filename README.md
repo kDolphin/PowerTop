@@ -1,6 +1,8 @@
 # PowerTop
 
-A native macOS menu bar app for real-time power monitoring on Apple Silicon Macs.
+A native macOS menu bar app for real-time power monitoring on Apple Silicon MacBooks.
+
+> **⚠️ MacBook only** — PowerTop requires a built-in battery. Mac mini, Mac Studio, and Mac Pro are not supported.
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue" />
@@ -28,7 +30,7 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon Macs
 ## Requirements
 
 - macOS 14.0 (Sonoma) or later
-- Apple Silicon Mac (arm64)
+- Apple Silicon **MacBook** (battery required — Mac mini / Mac Studio / Mac Pro not supported)
 
 ## Installation
 
@@ -78,7 +80,9 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## 中文说明
 
-一个原生 macOS 菜单栏应用，用于 Apple Silicon Mac 的实时功耗监控。
+一个原生 macOS 菜单栏应用，用于 Apple Silicon MacBook 的实时功耗监控。
+
+> **⚠️ 仅支持 MacBook** — PowerTop 需要内置电池。Mac mini、Mac Studio、Mac Pro 不受支持。
 
 ### 功能特性
 
