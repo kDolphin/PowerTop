@@ -213,15 +213,10 @@ final class PowerMonitor {
             )
         }
 
-        // Calculate actual battery charge rate from top-level IOKit Amperage×Voltage.
-        // This is more reliable than BatteryPower in PowerTelemetryData because:
-        // 1. BatteryPower suffers from UInt64 overflow (now fixed in extractInt, but still may
-        //    not match Amperage×Voltage exactly)
-        // 2. SystemLoad includes the charging component, so we must subtract charge rate
-        //    to get real system consumption
-        let amperageChargeRateW: Double? = {
+        // IOKit sign convention: Amperage > 0 = discharge, < 0 = charge.
+        let amperagePowerW: Double? = {
             guard let a = amperage, let v = voltage, a != 0, v > 0 else { return nil }
-            return Double(abs(a)) * Double(v) / 1_000_000.0
+            return Double(a) * Double(v) / 1_000_000.0
         }()
 
         if let telem = telemetry {
@@ -234,49 +229,28 @@ final class PowerMonitor {
             let sysCurrent = extractInt(from: telem, key: "SystemCurrentIn")
 
             let acInputW = Double(systemPowerIn) / 1000.0
-            // BatteryPower: positive = discharge, negative (via UInt64 overflow) = charge
+            let systemLoadW = Double(systemLoad) / 1000.0
+            // BatteryPower: positive = discharge, negative = charge
             let batteryPowerFromTelemetry = Double(batteryPower) / 1000.0
 
-            // Determine charge rate: prefer Amperage×Voltage, fallback to telemetry BatteryPower
-            let chargeRateW: Double
-            if isCharging {
-                chargeRateW = amperageChargeRateW ?? abs(batteryPowerFromTelemetry)
-            } else {
-                chargeRateW = 0
-            }
+            let flow = resolveBatteryFlow(
+                isOnAC: isOnAC,
+                isChargingFlag: isCharging,
+                acInputW: acInputW,
+                systemLoadW: systemLoadW,
+                amperagePowerW: amperagePowerW,
+                batteryPowerFromTelemetry: batteryPowerFromTelemetry
+            )
 
-            // Calculate systemPowerW:
-            // - When charging: SystemLoad includes charging component, so real system consumption
-            //   = SystemPowerIn - chargeRate (AC power minus what goes to battery)
-            // - When on battery: SystemLoad is negative (IOKit sign convention), use abs or BatteryPower
-            // - When on AC not charging: SystemLoad is positive and correct
-            var systemPowerW: Double
-            if isCharging && acInputW > chargeRateW {
-                systemPowerW = acInputW - chargeRateW
-            } else if systemLoad < 0 {
-                // On battery: SystemLoad is negative, BatteryPower is positive (= discharge rate = system power)
-                systemPowerW = batteryPowerFromTelemetry > 0 ? batteryPowerFromTelemetry : abs(Double(systemLoad) / 1000.0)
-            } else {
-                systemPowerW = Double(systemLoad) / 1000.0
-            }
-
-            // Fallback: if systemPowerW is still 0, try SystemVoltage×SystemCurrent
-            if systemPowerW == 0, let sv = sysVoltage, let sc = sysCurrent, sv > 0, sc > 0 {
-                systemPowerW = Double(sv) * Double(sc) / 1_000_000.0
-            }
-
-            // batteryPowerW: negative when charging, positive when discharging
-            var batteryPowerW: Double
-            if isCharging {
-                batteryPowerW = -chargeRateW
-            } else {
-                batteryPowerW = batteryPowerFromTelemetry
-            }
-
-            // On battery with no telemetry, use Amperage×Voltage as system power
-            if !isOnAC, systemPowerW == 0, batteryPowerW > 0 {
-                systemPowerW = batteryPowerW
-            }
+            let (systemPowerW, batteryPowerW) = computePowerMetrics(
+                flow: flow,
+                isOnAC: isOnAC,
+                acInputW: acInputW,
+                systemLoadW: systemLoadW,
+                batteryPowerFromTelemetry: batteryPowerFromTelemetry,
+                sysVoltage: sysVoltage,
+                sysCurrent: sysCurrent
+            )
 
             return buildResult(
                 systemPowerW, batteryPowerW, acInputW,
@@ -286,14 +260,134 @@ final class PowerMonitor {
             )
         }
 
-        // Fallback: calculate from Amperage x Voltage
+        // Fallback: calculate from signed Amperage × Voltage
         var systemPowerW: Double = 0
         var batteryPowerW: Double = 0
-        if let v = voltage, let a = amperage {
-            batteryPowerW = Double(a) * Double(v) / 1_000_000.0
-            if !isOnAC { systemPowerW = abs(batteryPowerW) }
+        if let signedPower = amperagePowerW {
+            batteryPowerW = signedPower
+            if !isOnAC {
+                systemPowerW = abs(signedPower)
+            } else if signedPower < 0 {
+                systemPowerW = 0
+            } else {
+                systemPowerW = signedPower
+            }
         }
 
         return buildResult(systemPowerW, batteryPowerW, 0, nil, nil, nil, nil, .legacy)
+    }
+
+    private enum BatteryFlow {
+        case charging(rateW: Double)
+        case discharging(rateW: Double)
+        case idle
+    }
+
+    /// Resolves actual battery direction using amperage/telemetry signs, with IsCharging as fallback only.
+    private nonisolated func resolveBatteryFlow(
+        isOnAC: Bool,
+        isChargingFlag: Bool,
+        acInputW: Double,
+        systemLoadW: Double,
+        amperagePowerW: Double?,
+        batteryPowerFromTelemetry: Double
+    ) -> BatteryFlow {
+        let powerThreshold = 0.3
+
+        if let ampPower = amperagePowerW {
+            if ampPower > powerThreshold {
+                let rate = batteryPowerFromTelemetry > powerThreshold
+                    ? batteryPowerFromTelemetry
+                    : ampPower
+                return .discharging(rateW: rate)
+            }
+            if ampPower < -powerThreshold {
+                let rate = batteryPowerFromTelemetry < -powerThreshold
+                    ? abs(batteryPowerFromTelemetry)
+                    : abs(ampPower)
+                return .charging(rateW: rate)
+            }
+        }
+
+        if batteryPowerFromTelemetry > powerThreshold {
+            return .discharging(rateW: batteryPowerFromTelemetry)
+        }
+        if batteryPowerFromTelemetry < -powerThreshold {
+            return .charging(rateW: abs(batteryPowerFromTelemetry))
+        }
+
+        if isOnAC && isChargingFlag {
+            if let ampPower = amperagePowerW, ampPower < 0 {
+                return .charging(rateW: abs(ampPower))
+            }
+            if acInputW > systemLoadW + 0.5 {
+                return .charging(rateW: acInputW - systemLoadW)
+            }
+        }
+
+        return .idle
+    }
+
+    private nonisolated func computePowerMetrics(
+        flow: BatteryFlow,
+        isOnAC: Bool,
+        acInputW: Double,
+        systemLoadW: Double,
+        batteryPowerFromTelemetry: Double,
+        sysVoltage: Int?,
+        sysCurrent: Int?
+    ) -> (systemPowerW: Double, batteryPowerW: Double) {
+        var systemPowerW: Double = 0
+        var batteryPowerW: Double = 0
+
+        switch flow {
+        case .charging(let rateW):
+            batteryPowerW = -rateW
+            if isOnAC, acInputW > rateW {
+                systemPowerW = acInputW - rateW
+            } else if systemLoadW > 0 {
+                systemPowerW = systemLoadW
+            } else if isOnAC {
+                systemPowerW = max(0, acInputW - rateW)
+            }
+
+        case .discharging(let rateW):
+            batteryPowerW = rateW
+            if isOnAC {
+                if systemLoadW > 0 {
+                    systemPowerW = systemLoadW
+                } else {
+                    systemPowerW = acInputW + rateW
+                }
+            } else if systemLoadW < 0 {
+                systemPowerW = abs(systemLoadW)
+            } else {
+                systemPowerW = rateW
+            }
+
+        case .idle:
+            batteryPowerW = batteryPowerFromTelemetry
+            if !isOnAC {
+                if systemLoadW < 0 {
+                    systemPowerW = abs(systemLoadW)
+                } else if batteryPowerFromTelemetry > 0 {
+                    systemPowerW = batteryPowerFromTelemetry
+                }
+            } else if systemLoadW > 0 {
+                systemPowerW = systemLoadW
+            } else {
+                systemPowerW = acInputW
+            }
+        }
+
+        if systemPowerW == 0, let sv = sysVoltage, let sc = sysCurrent, sv > 0, sc > 0 {
+            systemPowerW = Double(sv) * Double(sc) / 1_000_000.0
+        }
+
+        if !isOnAC, systemPowerW == 0, batteryPowerW > 0 {
+            systemPowerW = batteryPowerW
+        }
+
+        return (systemPowerW, batteryPowerW)
     }
 }

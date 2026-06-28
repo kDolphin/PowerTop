@@ -95,23 +95,24 @@ struct PowerData {
         return systemPowerW
     }
 
+    private var isBatteryDischarging: Bool {
+        batteryPowerW > 0.3
+    }
+
     /// Whether the battery is actively charging.
-    /// Uses IsCharging flag as primary indicator; falls back to power flow math.
-    /// Safety override: if clearly on battery, IsCharging must be stale.
+    /// Prefers signed battery power; only falls back to IsCharging when flow is ambiguous.
     var isBatteryCharging: Bool {
         if clearlyOnBattery { return false }
-        if isCharging { return true }
-        // AC output exceeds system consumption → excess charges the battery
-        if isOnAC && acInputW > systemPowerW + 0.5 { return true }
+        if isBatteryDischarging { return false }
+        if batteryPowerW < -0.3 { return true }
+        if isOnAC && isCharging && acInputW > systemPowerW + 0.5 { return true }
         return false
     }
 
     /// Battery charge rate in watts (positive value).
     var batteryChargeRateW: Double {
         if !isBatteryCharging { return 0 }
-        // batteryPowerW is now correctly calculated as -(Amperage×Voltage) when charging
         if batteryPowerW < 0 { return abs(batteryPowerW) }
-        // Fallback: derive from AC surplus
         if acInputW > systemPowerW { return acInputW - systemPowerW }
         return 0
     }
@@ -124,7 +125,7 @@ struct PowerData {
     /// How much power the battery provides to the system (discharge only)
     var batteryProvidesW: Double {
         if !effectiveIsOnAC { return systemPowerW }
-        if isSupplementalDischarge { return systemPowerW - acInputW }
+        if isSupplementalDischarge { return batterySupplementalW }
         return 0
     }
 
@@ -135,6 +136,7 @@ struct PowerData {
 
     var powerSourceDescription: String {
         if isBatteryCharging { return String(localized: "AC Charging") }
+        if isSupplementalDischarge { return String(localized: "AC + Battery Supplement") }
         if !effectiveIsOnAC { return String(localized: "Battery Discharging") }
         if fullyCharged { return String(localized: "AC Fully Charged") }
         return String(localized: "AC Powered")
@@ -142,7 +144,23 @@ struct PowerData {
 
     /// Battery is supplementing AC (AC can't provide enough power alone)
     var isSupplementalDischarge: Bool {
-        isOnAC && !isBatteryCharging && acInputW > 0 && acInputW < systemPowerW
+        guard effectiveIsOnAC, acInputW > 0, !isBatteryCharging else { return false }
+        if isBatteryDischarging { return true }
+        return acInputW + 0.5 < systemPowerW
+    }
+
+    /// How much power the battery contributes during supplemental discharge.
+    var batterySupplementalW: Double {
+        guard isSupplementalDischarge else { return 0 }
+        if batteryPowerW > 0.3 { return batteryPowerW }
+        return max(0, systemPowerW - acInputW)
+    }
+
+    /// Primary wattage shown in the popover header.
+    var headerPowerW: Double {
+        if !effectiveIsOnAC || isSupplementalDischarge { return systemPowerW }
+        if isBatteryCharging { return effectiveACOutputW }
+        return effectiveACOutputW
     }
 
     var notChargingReasonDescription: String? {
