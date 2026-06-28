@@ -233,7 +233,11 @@ final class PowerMonitor {
             let sysVoltage = extractInt(from: telem, key: "SystemVoltageIn")
             let sysCurrent = extractInt(from: telem, key: "SystemCurrentIn")
 
-            let acInputW = Double(systemPowerIn) / 1000.0
+            // SystemPowerIn can retain its last non-zero sample after the
+            // adapter is unplugged. ExternalConnected is the authoritative
+            // source for whether AC is physically present, so discard stale
+            // AC telemetry while running on battery.
+            let acInputW = isOnAC ? Double(systemPowerIn) / 1000.0 : 0
             // BatteryPower: positive = discharge, negative (via UInt64 overflow) = charge
             let batteryPowerFromTelemetry = Double(batteryPower) / 1000.0
 

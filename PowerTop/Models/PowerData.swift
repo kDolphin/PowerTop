@@ -96,14 +96,13 @@ struct PowerData {
     }
 
     /// Whether the battery is actively charging.
-    /// Uses IsCharging flag as primary indicator; falls back to power flow math.
-    /// Safety override: if clearly on battery, IsCharging must be stale.
+    /// Requires a connected adapter and either the system charging flag or
+    /// clear negative battery power. AC input and system load are measured at
+    /// different points and must not be compared to infer battery charging.
     var isBatteryCharging: Bool {
-        if clearlyOnBattery { return false }
+        guard isOnAC else { return false }
         if isCharging { return true }
-        // AC output exceeds system consumption → excess charges the battery
-        if isOnAC && acInputW > systemPowerW + 0.5 { return true }
-        return false
+        return batteryPowerW < -0.5
     }
 
     /// Battery charge rate in watts (positive value).
