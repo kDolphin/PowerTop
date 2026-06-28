@@ -9,6 +9,15 @@ EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
 echo "=== Building $APP_NAME ==="
 
+# Prefer the Xcode SDK to avoid Command Line Tools SDK/compiler mismatches.
+if [ -d "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" ]; then
+    SDK="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+    SWIFTC="/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+else
+    SDK="$(xcrun --show-sdk-path)"
+    SWIFTC="swiftc"
+fi
+
 # Clean previous build
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
@@ -26,9 +35,9 @@ SWIFT_FILES=(
     "$PROJECT_DIR/PowerTop/PowerTopApp.swift"
 )
 
-swiftc \
+"$SWIFTC" \
     -target arm64-apple-macosx14.0 \
-    -sdk $(xcrun --show-sdk-path) \
+    -sdk "$SDK" \
     -framework SwiftUI \
     -framework IOKit \
     -framework CoreFoundation \
@@ -73,8 +82,12 @@ for lproj in en.lproj zh-Hans.lproj; do
     fi
 done
 
+ZIP_PATH="$BUILD_DIR/$APP_NAME.zip"
+ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_PATH"
+
 echo "=== Build complete ==="
 echo "App bundle: $APP_BUNDLE"
+echo "Zip archive: $ZIP_PATH"
 echo ""
 echo "To run: open \"$APP_BUNDLE\""
 echo "Or:     \"$EXECUTABLE\""
