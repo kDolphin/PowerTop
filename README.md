@@ -23,9 +23,15 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 
 ## Screenshots
 
-*Menu bar popover showing AC charging state with power flow diagram*
+<p align="center">
+  <img src="docs/images/powertop-menu.webp" alt="PowerTop menu bar popover" width="34%" />
+  &nbsp;&nbsp;
+  <img src="docs/images/powertop-details.webp" alt="PowerTop detail window" width="59%" />
+</p>
 
-*Detail window with comprehensive battery and power parameters*
+<p align="center">
+  <sub>Menu bar power overview · Detailed battery and power parameters</sub>
+</p>
 
 ## Requirements
 
