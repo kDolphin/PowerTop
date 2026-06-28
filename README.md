@@ -36,16 +36,30 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 
 ### Download
 
-Download the latest release from the [Releases page](https://github.com/kdolphin/PowerTop/releases).
+Download `PowerTop.dmg` from the [Releases page](https://github.com/kDolphin/PowerTop/releases).
 
-1. Unzip `PowerTop.zip`
-2. Move `PowerTop.app` to `/Applications`
-3. On first launch, right-click the app and select **Open** (required for unsigned apps)
+1. Open `PowerTop.dmg` and drag **PowerTop** to the **Applications** folder.
+2. In Finder, open **Applications** and launch **PowerTop** once. When macOS
+   reports that it cannot verify the app, close the warning.
+3. Open **System Settings → Privacy & Security** and scroll down to **Security**.
+4. Next to the message that **PowerTop was blocked to protect your Mac**, click
+   **Open Anyway**.
+5. Authenticate with Touch ID or your password, then confirm **Open**. Future
+   launches work normally.
+
+PowerTop is ad-hoc signed but cannot be notarized because the project does not
+have an Apple Developer account, so this one-time Gatekeeper approval is
+expected. In the uncommon case that **Open Anyway** still does not work, run
+this once after moving the app to `/Applications`:
+
+```bash
+xattr -cr /Applications/PowerTop.app
+```
 
 ### Build from Source
 
 ```bash
-git clone https://github.com/kdolphin/PowerTop.git
+git clone https://github.com/kDolphin/PowerTop.git
 cd PowerTop
 bash build.sh
 open build/PowerTop.app
@@ -97,16 +111,27 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ### 安装
 
-从 [Releases 页面](https://github.com/kdolphin/PowerTop/releases) 下载最新版本。
+从 [Releases 页面](https://github.com/kDolphin/PowerTop/releases) 下载 `PowerTop.dmg`。
 
-1. 解压 `PowerTop.zip`
-2. 将 `PowerTop.app` 移动到 `/Applications`
-3. 首次启动时，右键点击应用选择**打开**（未签名应用需要此操作）
+1. 打开 `PowerTop.dmg`，将 **PowerTop** 拖入 **Applications（应用程序）**。
+2. 在 Finder 中打开“应用程序”，双击 **PowerTop** 启动一次。看到 macOS
+   无法验证该 App 的提示后，关闭提示。
+3. 打开**系统设置 → 隐私与安全性**，向下滚动到“安全性”。
+4. 找到“已阻止‘PowerTop’以保护 Mac”，点击**仍要打开**。
+5. 使用 Touch ID 或登录密码验证，然后确认**打开**。以后可以正常双击启动。
+
+PowerTop 已进行 ad-hoc 签名，但因为项目没有 Apple Developer 账号而无法进行
+Apple 公证，所以上述 Gatekeeper 放行操作首次启动时属于预期行为。极少数情况下
+点击**仍要打开**后依然失败，请在应用已移入 `/Applications` 后执行一次：
+
+```bash
+xattr -cr /Applications/PowerTop.app
+```
 
 ### 从源码构建
 
 ```bash
-git clone https://github.com/kdolphin/PowerTop.git
+git clone https://github.com/kDolphin/PowerTop.git
 cd PowerTop
 bash build.sh
 open build/PowerTop.app

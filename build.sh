@@ -2,19 +2,26 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BUILD_DIR="$PROJECT_DIR/build"
+BUILD_DIR="${BUILD_DIR:-$PROJECT_DIR/build}"
 APP_NAME="PowerTop"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+VERSION="${VERSION:-1.0.0}"
+BUILD_NUMBER="${BUILD_NUMBER:-1}"
 
-echo "=== Building $APP_NAME ==="
+if [[ ! "$VERSION" =~ ^[0-9]+([.][0-9]+){1,2}$ ]]; then
+    echo "Invalid VERSION '$VERSION' (expected a numeric version such as 1.0.0)" >&2
+    exit 1
+fi
+if [[ ! "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Invalid BUILD_NUMBER '$BUILD_NUMBER' (expected a positive integer)" >&2
+    exit 1
+fi
 
-# Clean previous build
+echo "=== Building $APP_NAME $VERSION ($BUILD_NUMBER) ==="
 rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR"
+mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 
-# Compile Swift sources
-echo "Compiling..."
 SWIFT_FILES=(
     "$PROJECT_DIR/PowerTop/Utilities/IOKitHelpers.swift"
     "$PROJECT_DIR/PowerTop/Models/PowerData.swift"
@@ -25,9 +32,10 @@ SWIFT_FILES=(
     "$PROJECT_DIR/PowerTop/PowerTopApp.swift"
 )
 
-swiftc \
+echo "Compiling arm64 executable..."
+xcrun swiftc \
     -target arm64-apple-macosx14.0 \
-    -sdk $(xcrun --show-sdk-path) \
+    -sdk "$(xcrun --show-sdk-path --sdk macosx)" \
     -framework SwiftUI \
     -framework IOKit \
     -framework CoreFoundation \
@@ -36,44 +44,37 @@ swiftc \
     -framework ServiceManagement \
     -parse-as-library \
     -O \
-    -o "$BUILD_DIR/$APP_NAME" \
+    -o "$EXECUTABLE" \
     "${SWIFT_FILES[@]}"
 
-echo "Creating app bundle..."
-mkdir -p "$APP_BUNDLE/Contents/MacOS"
-mkdir -p "$APP_BUNDLE/Contents/Resources"
+# ditto flags prevent source quarantine/provenance attributes entering the bundle.
+/usr/bin/ditto --noextattr --noqtn "$PROJECT_DIR/PowerTop/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP_BUNDLE/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP_BUNDLE/Contents/Info.plist"
 
-# Move executable into bundle
-mv "$BUILD_DIR/$APP_NAME" "$EXECUTABLE"
-
-# Copy Info.plist
-cp "$PROJECT_DIR/PowerTop/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
-
-# Copy Assets
-cp -R "$PROJECT_DIR/PowerTop/Assets.xcassets" "$APP_BUNDLE/Contents/Resources/Assets.xcassets"
-
-# Compile app icon using iconutil
-ICONSET_DIR=$(mktemp -d)/AppIcon.iconset
-mkdir -p "$ICONSET_DIR"
 ICONSET_SRC="$PROJECT_DIR/PowerTop/Assets.xcassets/AppIcon.appiconset"
-for f in icon_16x16.png icon_16x16@2x.png icon_32x32.png icon_32x32@2x.png \
-         icon_128x128.png icon_128x128@2x.png icon_256x256.png icon_256x256@2x.png \
-         icon_512x512.png icon_512x512@2x.png; do
-    [ -f "$ICONSET_SRC/$f" ] && cp "$ICONSET_SRC/$f" "$ICONSET_DIR/$f"
+ICONSET_ROOT="$(mktemp -d)"
+trap 'rm -rf "$ICONSET_ROOT"' EXIT
+ICONSET_DIR="$ICONSET_ROOT/AppIcon.iconset"
+mkdir -p "$ICONSET_DIR"
+for icon in \
+    icon_16x16.png icon_16x16@2x.png \
+    icon_32x32.png icon_32x32@2x.png \
+    icon_128x128.png icon_128x128@2x.png \
+    icon_256x256.png icon_256x256@2x.png \
+    icon_512x512.png icon_512x512@2x.png; do
+    /usr/bin/ditto --noextattr --noqtn "$ICONSET_SRC/$icon" "$ICONSET_DIR/$icon"
 done
-iconutil -c icns "$ICONSET_DIR" -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns" 2>/dev/null || true
-rm -rf "$ICONSET_DIR"
+xcrun iconutil -c icns "$ICONSET_DIR" -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
-# Copy localization resources
 for lproj in en.lproj zh-Hans.lproj; do
-    if [ -d "$PROJECT_DIR/PowerTop/$lproj" ]; then
-        mkdir -p "$APP_BUNDLE/Contents/Resources/$lproj"
-        cp "$PROJECT_DIR/PowerTop/$lproj/"*.strings "$APP_BUNDLE/Contents/Resources/$lproj/" 2>/dev/null || true
-    fi
+    mkdir -p "$APP_BUNDLE/Contents/Resources/$lproj"
+    /usr/bin/ditto --noextattr --noqtn \
+        "$PROJECT_DIR/PowerTop/$lproj/Localizable.strings" \
+        "$APP_BUNDLE/Contents/Resources/$lproj/Localizable.strings"
 done
 
-echo "=== Build complete ==="
-echo "App bundle: $APP_BUNDLE"
-echo ""
-echo "To run: open \"$APP_BUNDLE\""
-echo "Or:     \"$EXECUTABLE\""
+# Remove any metadata introduced by local tools before signing.
+xattr -cr "$APP_BUNDLE"
+
+echo "Built $APP_BUNDLE"

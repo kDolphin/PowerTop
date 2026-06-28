@@ -1,0 +1,58 @@
+name: macOS Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15-intel
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Derive release version
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [[ ! "$version" =~ ^[0-9]+([.][0-9]+){1,2}$ ]]; then
+            echo "Release tag must look like v1.0.0" >&2
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Build app bundle
+        run: VERSION="$VERSION" BUILD_NUMBER="$GITHUB_RUN_NUMBER" ./build.sh
+
+      - name: Sign nested code and app ad-hoc
+        run: ./scripts/sign-app.sh build/PowerTop.app
+
+      - name: Final ad-hoc signing pass
+        working-directory: build
+        run: codesign --force --deep --sign - PowerTop.app
+
+      - name: Verify app bundle and signatures
+        run: ./scripts/verify-app.sh build/PowerTop.app "$VERSION"
+
+      - name: Create DMG
+        run: ./scripts/create-dmg.sh build/PowerTop.app build/PowerTop.dmg
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" build/PowerTop.dmg --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" build/PowerTop.dmg \
+              --verify-tag \
+              --generate-notes \
+              --title "PowerTop $VERSION"
+          fi
