@@ -5,6 +5,7 @@
 "Battery Discharging" = "电池放电";
 "AC Fully Charged" = "AC 已充满";
 "AC Powered" = "AC 供电";
+"AC + Battery Supplement" = "AC + 电池补充供电";
 
 // Not Charging Reason
 "Optimized Battery Charging" = "优化电池充电";
@@ -19,6 +20,7 @@
 "Battery Charging" = "电池充电";
 "System" = "系统";
 "Battery Discharge" = "电池放电";
+"Battery Supplement" = "电池补充功率";
 
 // Metrics
 "System Power" = "系统功耗";

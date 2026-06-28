@@ -5,6 +5,7 @@
 "Battery Discharging" = "Battery Discharging";
 "AC Fully Charged" = "AC Fully Charged";
 "AC Powered" = "AC Powered";
+"AC + Battery Supplement" = "AC + Battery Supplement";
 
 // Not Charging Reason
 "Optimized Battery Charging" = "Optimized Battery Charging";
@@ -19,6 +20,7 @@
 "Battery Charging" = "Battery Charging";
 "System" = "System";
 "Battery Discharge" = "Battery Discharge";
+"Battery Supplement" = "Battery Supplement";
 
 // Metrics
 "System Power" = "System Power";

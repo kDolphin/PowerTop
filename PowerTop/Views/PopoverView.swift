@@ -32,7 +32,7 @@ struct PopoverView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(data.powerSourceDescription)
                     .font(.system(size: 13, weight: .semibold))
-                Text(String(format: "%.1f W", data.effectiveIsOnAC ? data.effectiveACOutputW : data.systemPowerW))
+                Text(String(format: "%.1f W", data.headerPowerW))
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
             }
@@ -49,36 +49,104 @@ struct PopoverView: View {
     private var powerFlowDiagram: some View {
         VStack(spacing: 6) {
             if data.effectiveIsOnAC {
-                // AC as source at top
-                sourceBox(title: String(localized: "AC Adapter"), value: String(format: "%.1f W", data.effectiveACOutputW), color: .green, icon: "powerplug.fill")
-                Image(systemName: "arrowtriangle.down.fill")
-                    .font(.system(size: 8)).foregroundStyle(.secondary)
-                // Destinations at bottom
-                if data.isBatteryCharging {
-                    // AC splits into: battery charging + system
-                    HStack(spacing: 10) {
-                        destBox(title: String(localized: "Battery Charging"), value: String(format: "%.1f W", data.batteryChargeRateW), color: .blue, icon: "battery.100.bolt")
-                        destBox(title: String(localized: "System"), value: String(format: "%.1f W", data.systemPowerW), color: .primary, icon: "desktopcomputer")
-                    }
-                } else if data.isSupplementalDischarge {
-                    // AC + battery both feed system
-                    HStack(spacing: 10) {
-                        destBox(title: String(localized: "Battery Discharge"), value: String(format: "%.1f W", data.systemPowerW - data.acInputW), color: .orange, icon: "battery.50")
-                        destBox(title: String(localized: "System"), value: String(format: "%.1f W", data.systemPowerW), color: .primary, icon: "desktopcomputer")
-                    }
+                if data.isSupplementalDischarge {
+                    supplementalDischargeDiagram
                 } else {
-                    // AC → system only
-                    destBox(title: String(localized: "System"), value: String(format: "%.1f W", data.systemPowerW), color: .primary, icon: "desktopcomputer")
+                    acPoweredDiagram
                 }
             } else {
-                // Battery as source
-                sourceBox(title: String(localized: "Battery Discharge"), value: String(format: "%.1f W", data.systemPowerW), color: .orange, icon: "battery.50")
-                Image(systemName: "arrowtriangle.down.fill")
-                    .font(.system(size: 8)).foregroundStyle(.secondary)
-                destBox(title: String(localized: "System"), value: String(format: "%.1f W", data.systemPowerW), color: .primary, icon: "desktopcomputer")
+                batteryPoweredDiagram
             }
         }
         .padding(.horizontal, 14)
+    }
+
+    private var acPoweredDiagram: some View {
+        VStack(spacing: 6) {
+            sourceBox(
+                title: String(localized: "AC Adapter"),
+                value: String(format: "%.1f W", data.effectiveACOutputW),
+                color: .green,
+                icon: "powerplug.fill"
+            )
+            Image(systemName: "arrowtriangle.down.fill")
+                .font(.system(size: 8))
+                .foregroundStyle(.secondary)
+
+            if data.isBatteryCharging {
+                HStack(spacing: 10) {
+                    destBox(
+                        title: String(localized: "Battery Charging"),
+                        value: String(format: "%.1f W", data.batteryChargeRateW),
+                        color: .blue,
+                        icon: "battery.100.bolt"
+                    )
+                    destBox(
+                        title: String(localized: "System"),
+                        value: String(format: "%.1f W", data.systemPowerW),
+                        color: .primary,
+                        icon: "desktopcomputer"
+                    )
+                }
+            } else {
+                destBox(
+                    title: String(localized: "System"),
+                    value: String(format: "%.1f W", data.systemPowerW),
+                    color: .primary,
+                    icon: "desktopcomputer"
+                )
+            }
+        }
+    }
+
+    private var supplementalDischargeDiagram: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                sourceBox(
+                    title: String(localized: "AC Adapter"),
+                    value: String(format: "%.1f W", data.effectiveACOutputW),
+                    color: .green,
+                    icon: "powerplug.fill"
+                )
+                sourceBox(
+                    title: String(localized: "Battery Discharge"),
+                    value: String(format: "%.1f W", data.batterySupplementalW),
+                    color: .orange,
+                    icon: "battery.50"
+                )
+            }
+
+            Image(systemName: "arrowtriangle.down.fill")
+                .font(.system(size: 8))
+                .foregroundStyle(.secondary)
+
+            destBox(
+                title: String(localized: "System"),
+                value: String(format: "%.1f W", data.systemPowerW),
+                color: .primary,
+                icon: "desktopcomputer"
+            )
+        }
+    }
+
+    private var batteryPoweredDiagram: some View {
+        VStack(spacing: 6) {
+            sourceBox(
+                title: String(localized: "Battery Discharge"),
+                value: String(format: "%.1f W", data.systemPowerW),
+                color: .orange,
+                icon: "battery.50"
+            )
+            Image(systemName: "arrowtriangle.down.fill")
+                .font(.system(size: 8))
+                .foregroundStyle(.secondary)
+            destBox(
+                title: String(localized: "System"),
+                value: String(format: "%.1f W", data.systemPowerW),
+                color: .primary,
+                icon: "desktopcomputer"
+            )
+        }
     }
 
     private func sourceBox(title: String, value: String, color: Color, icon: String) -> some View {
@@ -122,7 +190,7 @@ struct PopoverView: View {
             if data.isBatteryCharging {
                 PowerRowView(icon: "arrow.down.to.line", iconColor: .blue, label: String(localized: "Battery Charging"), value: String(format: "%.1f W", data.batteryChargeRateW))
             } else if data.isSupplementalDischarge {
-                PowerRowView(icon: "arrow.up.right.and.arrow.down.left", iconColor: .orange, label: String(localized: "Battery Discharge"), value: String(format: "%.1f W", data.systemPowerW - data.acInputW))
+                PowerRowView(icon: "arrow.up.right.and.arrow.down.left", iconColor: .orange, label: String(localized: "Battery Supplement"), value: String(format: "%.1f W", data.batterySupplementalW))
             }
             if data.effectiveIsOnAC && data.acAdapterWattage > 0 {
                 PowerRowView(icon: "bolt.fill", iconColor: .green, label: String(localized: "Charger Spec"), value: "\(data.acAdapterWattage) W" + (data.adapterDescription.map { " (\($0))" } ?? ""))
@@ -205,6 +273,11 @@ struct PopoverView: View {
                 .font(.system(size: 11))
 
                 Spacer()
+
+                Text(AppInfo.versionLabel)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
 
                 Button(String(localized: "Quit")) {
                     NSApplication.shared.terminate(nil)
