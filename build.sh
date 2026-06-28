@@ -16,6 +16,7 @@ mkdir -p "$BUILD_DIR"
 # Compile Swift sources
 echo "Compiling..."
 SWIFT_FILES=(
+    "$PROJECT_DIR/PowerTop/Utilities/AppInfo.swift"
     "$PROJECT_DIR/PowerTop/Utilities/IOKitHelpers.swift"
     "$PROJECT_DIR/PowerTop/Models/PowerData.swift"
     "$PROJECT_DIR/PowerTop/Services/PowerMonitor.swift"
