@@ -40,27 +40,36 @@ struct PopoverView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            contentColumn
-            Spacer(minLength: 0)
-        }
-        .frame(width: Self.popoverWidth, alignment: .topLeading)
-        .onPreferenceChange(PopoverHeightPreferenceKey.self) { height in
-            measuredContentHeight = height
-            fitPopoverWindow(to: height)
-        }
-        .onChange(of: layoutSignature) { _, _ in
-            scheduleWindowFit(after: 0.05)
-        }
-        .onAppear {
-            scheduleWindowFit(after: 0)
-            DispatchQueue.main.async {
-                NSApp.keyWindow?.makeFirstResponder(nil)
+        // Single tight content container. We rely on .fixedSize(vertical: true) + preference measurement
+        // so the window can be set to the exact ideal height of the content. This avoids the previous
+        // wrapper + Spacer which could cause extra allocated space to appear as blanks above/below.
+        contentSections
+            .frame(width: Self.popoverWidth, alignment: .topLeading)
+            .fixedSize(horizontal: false, vertical: true)
+            .background(PopoverHeightObserver())
+            .onPreferenceChange(PopoverHeightPreferenceKey.self) { height in
+                if height > 1 {
+                    measuredContentHeight = height
+                    // Dispatch to allow the current update/layout pass to settle before resizing the NSWindow.
+                    DispatchQueue.main.async {
+                        fitPopoverWindow(to: height)
+                    }
+                }
             }
-        }
+            .onChange(of: layoutSignature) { _, _ in
+                // Major visual change (different diagram or phase). Re-fit shortly after SwiftUI updates.
+                scheduleWindowFit(after: 0.04)
+            }
+            .onAppear {
+                scheduleWindowFit(after: 0)
+                DispatchQueue.main.async {
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                }
+            }
     }
 
-    private var contentColumn: some View {
+    // The actual stacked sections (no extra frame/fixed/background here).
+    private var contentSections: some View {
         VStack(spacing: 0) {
             headerSection
             Divider().padding(.horizontal, 12)
@@ -79,12 +88,6 @@ struct PopoverView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
         }
-        .frame(width: Self.popoverWidth, alignment: .topLeading)
-        .fixedSize(horizontal: false, vertical: true)
-        .background(
-            // Pure preference emitter. All measured/fit reaction happens in .onPreferenceChange above.
-            PopoverHeightObserver()
-        )
     }
 
     private static let popoverWidth: CGFloat = 280
@@ -432,8 +435,11 @@ struct PopoverView: View {
 
     private func scheduleWindowFit(after delay: TimeInterval) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            guard measuredContentHeight > 0 else { return }
-            fitPopoverWindow(to: measuredContentHeight)
+            guard measuredContentHeight > 1 else { return }
+            // When called due to layoutSignature change, we want to force a resize attempt
+            // even if previous window size looked similar (to handle cases where measurement
+            // was captured against a stale container size).
+            fitPopoverWindow(to: measuredContentHeight, force: true)
         }
     }
 
@@ -456,18 +462,20 @@ struct PopoverView: View {
         return found
     }
 
-    private func fitPopoverWindow(to contentHeight: CGFloat) {
+    private func fitPopoverWindow(to contentHeight: CGFloat, force: Bool = false) {
         DispatchQueue.main.async {
-            guard contentHeight > 0 else { return }
+            guard contentHeight > 1 else { return }
             guard let window = self.popoverWindow() else { return }
 
-            let sizeChanged = abs(window.frame.height - contentHeight) > 1
-                || abs(window.frame.width - Self.popoverWidth) > 1
-            guard sizeChanged else { return }
+            let heightDiff = abs(window.frame.height - contentHeight)
+            let widthDiff = abs(window.frame.width - Self.popoverWidth)
+            if !force && heightDiff < 1 && widthDiff < 1 {
+                return
+            }
 
             var frame = window.frame
             // Only shift origin when width actually changed; unconditional shift could push popover off menu item.
-            if abs(frame.size.width - Self.popoverWidth) > 1 {
+            if widthDiff > 1 {
                 frame.origin.x += (frame.size.width - Self.popoverWidth) / 2
             }
             frame.origin.y += frame.size.height - contentHeight
