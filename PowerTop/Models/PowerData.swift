@@ -138,7 +138,6 @@ struct PowerData {
         if isBatteryCharging { return String(localized: "AC Charging") }
         if isSupplementalDischarge { return String(localized: "AC + Battery Supplement") }
         if !effectiveIsOnAC { return String(localized: "Battery Discharging") }
-        if fullyCharged { return String(localized: "AC Fully Charged") }
         return String(localized: "AC Powered")
     }
 

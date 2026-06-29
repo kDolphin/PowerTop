@@ -3,7 +3,6 @@
 // Power Source Description
 "AC Charging" = "AC 充电中";
 "Battery Discharging" = "电池放电";
-"AC Fully Charged" = "AC 已充满";
 "AC Powered" = "AC 供电";
 "AC + Battery Supplement" = "AC + 电池补充供电";
 
