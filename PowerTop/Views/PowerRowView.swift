@@ -26,14 +26,14 @@ struct PowerRowView: View {
             } else {
                 Text(label)
                     .foregroundStyle(.secondary)
-
-                Spacer(minLength: 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(value)
                     .fontWeight(.medium)
                     .monospacedDigit()
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
             }
         }
         .font(.system(size: 12))
