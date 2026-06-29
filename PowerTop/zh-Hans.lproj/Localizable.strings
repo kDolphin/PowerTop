@@ -47,29 +47,30 @@
 "PowerTop Details" = "PowerTop 详细参数";
 
 // Detail - Power Section
+"Current Power" = "当前电源";
 "Power" = "电源";
 "Power Source" = "电源来源";
-"Total System Power (Instant)" = "系统总功耗 (瞬时)";
-"AC Adapter Total Output (DC)" = "AC 适配器总输出 (DC)";
 "Battery Charging Power" = "电池充电功率";
 "Battery Discharging Power" = "电池放电功率";
-"Charger Rated Power" = "充电器额定功率";
 "Charger Load Rate" = "充电器负载率";
-"Avg Wall Outlet Power (Long-term)" = "平均墙壁插座功耗 (长期)";
-"Avg Adapter Loss (Long-term)" = "平均适配器损耗 (长期)";
+"Charging Status" = "充电状态";
+"Not Charging" = "未在充电";
+"Historical Averages" = "历史平均";
+"Avg Wall Outlet Power" = "平均墙插功耗";
+"Avg Adapter Loss" = "平均适配器损耗";
 "Charger Output Voltage" = "充电器输出电压";
 "Charger Output Current" = "充电器输出电流";
-"Estimation Mode (No PowerTelemetryData)" = "估算模式 (无 PowerTelemetryData)";
+"Estimation Mode — telemetry unavailable" = "估算模式 — 遥测数据不可用";
 
 // Detail - Battery Health
 "Battery Health" = "电池健康";
-"Max Capacity (Health)" = "最大容量（健康度）";
+"Capacity Details" = "容量详情";
+"Electrical Readings" = "电气读数";
+"Status & Alerts" = "状态与告警";
 "Design Capacity" = "设计容量";
-"Full Charge Capacity (FCC)" = "满充容量 (FCC)";
+"Full Charge Capacity" = "当前满充容量";
 "Nominal Full Charge Capacity" = "标称满充容量";
 "design life" = "设计寿命";
-"Battery Level (Cell Precise)" = "电量 (电芯精确值)";
-"Battery Pack Voltage" = "电池组电压";
 "Discharging" = "放电";
 "Charging" = "充电";
 "Idle" = "空闲";
@@ -84,13 +85,15 @@
 
 // Detail - Cell Data
 "Cell Data" = "电芯数据";
+"Cell Balance" = "电芯均衡";
+"%d mV spread — %@" = "压差 %d mV — %@";
+"Fair" = "一般";
+"Worth Checking" = "建议关注";
 "Cell %d Voltage" = "电芯 %d 电压";
 "Cell %d Full Charge Capacity" = "电芯 %d 满充容量";
 "Optimized Charging Range" = "优化充电保持范围";
 
 // Detail - Charging
-"Charging Details" = "充电详情";
-"Currently Charging" = "正在充电";
 "Fully Charged" = "已充满";
 "Cell Charging Voltage" = "电芯充电电压";
 "Charging Current" = "充电电流";
@@ -109,12 +112,18 @@
 "Min Pack Voltage" = "历史最低电池组电压";
 "Max Charging Current" = "历史最大充电电流";
 "Max Discharging Current" = "历史最大放电电流";
-"Cell Safety Trigger Count" = "电芯安全保护触发次数";
+"Since First Use" = "自首次使用以来";
+"Protection Trigger Count" = "保护触发次数";
+"0 (normal)" = "0（正常）";
 
 // Detail - Device Info
 "Device Information" = "设备信息";
 "Battery Serial Number" = "电池序列号";
-"Battery Gauge Chip" = "电量计芯片";
+"Battery Management Chip" = "电池管理芯片";
+"Device info is shown locally only and is not uploaded." = "设备信息仅在本地显示，不会上传。";
+
+// Detail - Footer
+"Updated at %@" = "更新于 %@";
 
 // Hardware availability
 "Built-in battery not detected. PowerTop requires a MacBook." = "未检测到内置电池。PowerTop 仅支持 MacBook。";
