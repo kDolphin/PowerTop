@@ -115,3 +115,6 @@
 "Device Information" = "Device Information";
 "Battery Serial Number" = "Battery Serial Number";
 "Battery Gauge Chip" = "Battery Gauge Chip";
+
+// Hardware availability
+"Built-in battery not detected. PowerTop requires a MacBook." = "Built-in battery not detected. PowerTop requires a MacBook.";

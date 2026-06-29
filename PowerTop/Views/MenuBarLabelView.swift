@@ -3,9 +3,12 @@ import SwiftUI
 struct MenuBarLabelView: View {
     let data: PowerData
     let showPower: Bool
+    let isDataAvailable: Bool
 
     var body: some View {
-        if showPower {
+        if !isDataAvailable {
+            Image(systemName: "exclamationmark.triangle")
+        } else if showPower {
             Text(data.menuBarPowerText)
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .monospacedDigit()

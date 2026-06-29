@@ -10,15 +10,37 @@ struct DetailWindowView: View {
             VStack(alignment: .leading, spacing: 16) {
                 powerSection
                 batteryHealthSection
-                cellDataSection
+                if hasCellData { cellDataSection }
                 chargingSection
-                lifetimeSection
-                deviceInfoSection
+                if hasLifetimeData { lifetimeSection }
+                if hasDeviceInfo { deviceInfoSection }
             }
             .padding(20)
         }
         .frame(minWidth: 520, minHeight: 500)
         .background(.windowBackground)
+    }
+
+    private var hasCellData: Bool {
+        data.cellVoltagesMV != nil
+            || data.qmaxMAH != nil
+            || (data.dailyMinSoc != nil && data.dailyMaxSoc != nil)
+    }
+
+    private var hasLifetimeData: Bool {
+        data.totalOperatingTimeMin != nil
+            || data.lifetimeMaxTempC != nil
+            || data.lifetimeMinTempC != nil
+            || data.lifetimeAvgTempC != nil
+            || data.lifetimeMaxPackVoltageMV != nil
+            || data.lifetimeMinPackVoltageMV != nil
+            || data.lifetimeMaxChargeCurrentMA != nil
+            || data.lifetimeMaxDischargeCurrentMA != nil
+            || data.batteryCellDisconnectCount != nil
+    }
+
+    private var hasDeviceInfo: Bool {
+        data.batterySerial != nil || data.deviceName != nil
     }
 
     // MARK: - Power
@@ -166,14 +188,18 @@ struct DetailWindowView: View {
                 DetailRow(label: String(localized: "Total Operating Time"), value: "\(hours) \(String(localized: "hours")) (\(total) \(String(localized: "minutes")))")
             }
             if let maxT = data.lifetimeMaxTempC {
-                DetailRow(label: String(localized: "Battery Max Temperature"), value: "\(maxT) °C")
+                let c = TemperatureUnits.lifetimeCelsius(fromWholeDegrees: maxT)
+                DetailRow(label: String(localized: "Battery Max Temperature"), value: "\(c) °C")
             }
             if let minT = data.lifetimeMinTempC {
-                DetailRow(label: String(localized: "Battery Min Temperature"), value: "\(minT) °C")
+                let c = TemperatureUnits.lifetimeCelsius(fromWholeDegrees: minT)
+                DetailRow(label: String(localized: "Battery Min Temperature"), value: "\(c) °C")
             }
             if let avgT = data.lifetimeAvgTempC {
-                // AverageTemperature is in decidegrees (0.1°C), unlike Max/Min which are whole degrees
-                DetailRow(label: String(localized: "Battery Avg Temperature"), value: String(format: "%.1f °C", Double(avgT) / 10.0))
+                DetailRow(
+                    label: String(localized: "Battery Avg Temperature"),
+                    value: String(format: "%.1f °C", TemperatureUnits.lifetimeAvgCelsius(fromDecidegrees: avgT))
+                )
             }
             if let maxV = data.lifetimeMaxPackVoltageMV {
                 DetailRow(label: String(localized: "Max Pack Voltage"), value: String(format: "%.3f V", Double(maxV) / 1000.0))

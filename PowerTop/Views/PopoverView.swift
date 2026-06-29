@@ -8,9 +8,6 @@ private struct PopoverHeightPreferenceKey: PreferenceKey {
 }
 
 private struct PopoverHeightObserver: View {
-    // Pure reporter: only emits preference. No direct @State mutation or fit calls from
-    // inside GeometryReader (prevents "modifying state during view update"). React via
-    // .onPreferenceChange on the parent (review Bug 4).
     var body: some View {
         GeometryReader { geo in
             Color.clear
@@ -23,7 +20,7 @@ struct PopoverView: View {
     let monitor: PowerMonitor
     @Environment(\.openWindow) private var openWindow
     @State private var measuredContentHeight: CGFloat = 0
-    @State private var cachedPopoverWindow: NSWindow?   // cached for robust window targeting (review Bug 3)
+    @State private var cachedPopoverWindow: NSWindow?
 
     private var data: PowerData { monitor.currentData }
 
@@ -72,6 +69,9 @@ struct PopoverView: View {
     // The actual stacked sections (no extra frame/fixed/background here).
     private var contentSections: some View {
         VStack(spacing: 0) {
+            if !monitor.isDataAvailable {
+                unavailableBanner
+            }
             headerSection
             Divider().padding(.horizontal, 12)
             powerFlowDiagram
@@ -93,6 +93,21 @@ struct PopoverView: View {
     }
 
     private static let popoverWidth: CGFloat = 280
+
+    private var unavailableBanner: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text(String(localized: "Built-in battery not detected. PowerTop requires a MacBook."))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.orange.opacity(0.08))
+    }
 
     private var headerIconColor: Color {
         if data.isConnectingAC { return .secondary }
@@ -405,6 +420,13 @@ struct PopoverView: View {
                 .toggleStyle(.checkbox)
                 .font(.system(size: 11))
 
+                if let error = monitor.launchAtLoginError {
+                    Text(error)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 Toggle(String(localized: "Show Power in Menu Bar"), isOn: Binding(
                     get: { monitor.showPowerInMenuBar },
                     set: { monitor.showPowerInMenuBar = $0 }
@@ -449,8 +471,6 @@ struct PopoverView: View {
         if let cached = cachedPopoverWindow, cached.isVisible {
             return cached
         }
-        // More defensive search: prefer visible windows of approximately our width that are
-        // not the detail window. Avoids picking unrelated windows (review Bug 3).
         let candidates = NSApp.windows.filter { w in
             w.isVisible &&
             abs(w.frame.width - Self.popoverWidth) < 12 &&
@@ -480,11 +500,12 @@ struct PopoverView: View {
             let oldHeight = window.frame.height
             let delta = oldHeight - contentHeight
 
+            let oldWidth = window.frame.width
             var frame = window.frame
             frame.size.width = Self.popoverWidth
             frame.size.height = contentHeight
             if widthDiff > 0.5 {
-                frame.origin.x += (frame.size.width - Self.popoverWidth) / 2   // only when needed
+                frame.origin.x += (oldWidth - Self.popoverWidth) / 2
             }
             frame.origin.y += delta
 
@@ -509,9 +530,4 @@ struct PopoverView: View {
         openWindow(id: "detail")
         NSApp.activate(ignoringOtherApps: true)
     }
-}
-
-extension Notification.Name {
-    static let openDetailWindow = Notification.Name("com.kdolphin.powertop.openDetailWindow")
-    static let iOPowerSourceChanged = Notification.Name("com.kdolphin.powertop.iOPowerSourceChanged")
 }

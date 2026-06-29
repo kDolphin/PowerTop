@@ -11,6 +11,8 @@ final class PowerMonitor {
     private static let showPowerInMenuBarKey = "showPowerInMenuBar"
 
     var currentData: PowerData = .empty
+    var isDataAvailable: Bool = true
+    var launchAtLoginError: String?
     var launchAtLogin: Bool {
         didSet {
             do {
@@ -19,8 +21,10 @@ final class PowerMonitor {
                 } else {
                     try SMAppService.mainApp.unregister()
                 }
+                launchAtLoginError = nil
             } catch {
                 launchAtLogin = oldValue
+                launchAtLoginError = error.localizedDescription
             }
         }
     }
@@ -32,6 +36,9 @@ final class PowerMonitor {
 
     private var timer: Timer?
     private var powerSourceNotifier: CFRunLoopSource?
+    private var iopsRetainedContext: UnsafeMutableRawPointer?
+    private var workspaceObservers: [NSObjectProtocol] = []
+    private var pendingRefreshWorkItems: [DispatchWorkItem] = []
     private let updateInterval: TimeInterval = 2.0
     private let connectingACTimeout: TimeInterval = 3.0
 
@@ -43,7 +50,7 @@ final class PowerMonitor {
 
     private var machinePhase: MachinePhase = .onBattery
     private var lastExternalConnected: Bool?
-    private var lastUnplugEventAt: Date?   // used to suppress stale isOnAC=true right after explicit unplug (review Bug 1)
+    private var lastUnplugEventAt: Date?
 
     init() {
         launchAtLogin = (SMAppService.mainApp.status == .enabled)
@@ -51,38 +58,63 @@ final class PowerMonitor {
     }
 
     func start() {
-        let raw = readPowerData()
+        let (raw, available) = readPowerData()
+        isDataAvailable = available
         lastExternalConnected = raw.isOnAC
         machinePhase = raw.isOnAC ? .onAC : .onBattery
         publishDisplayData(from: raw)
         scheduleTimer()
         setupPowerSourceNotification()
 
-        NSWorkspace.shared.notificationCenter.addObserver(
-            self, selector: #selector(systemDidSleep),
-            name: NSWorkspace.willSleepNotification, object: nil
+        let center = NSWorkspace.shared.notificationCenter
+        workspaceObservers.append(
+            center.addObserver(
+                forName: NSWorkspace.willSleepNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    self?.handleSystemSleep()
+                }
+            }
         )
-        NSWorkspace.shared.notificationCenter.addObserver(
-            self, selector: #selector(systemDidWake),
-            name: NSWorkspace.didWakeNotification, object: nil
+        workspaceObservers.append(
+            center.addObserver(
+                forName: NSWorkspace.didWakeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    self?.handleSystemWake()
+                }
+            }
         )
     }
 
     func stop() {
         timer?.invalidate()
         timer = nil
+        cancelPendingRefreshes()
         if let notifier = powerSourceNotifier {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), notifier, .commonModes)
             powerSourceNotifier = nil
         }
+        if let ctx = iopsRetainedContext {
+            Unmanaged<PowerMonitor>.fromOpaque(ctx).release()
+            iopsRetainedContext = nil
+        }
+        for observer in workspaceObservers {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
+        workspaceObservers.removeAll()
     }
 
-    @objc private func systemDidSleep() {
+    private func handleSystemSleep() {
         timer?.invalidate()
         timer = nil
     }
 
-    @objc private func systemDidWake() {
+    private func handleSystemWake() {
         updateData()
         scheduleTimer()
     }
@@ -90,20 +122,15 @@ final class PowerMonitor {
     // MARK: - IOPS Power Source Notification
 
     private func setupPowerSourceNotification() {
-        let context = Unmanaged.passUnretained(self).toOpaque()
+        let retained = Unmanaged.passRetained(self)
+        iopsRetainedContext = retained.toOpaque()
+        let context = retained.toOpaque()
+
         let callback: IOPowerSourceCallbackType = { ctx in
             guard let ctx = ctx else { return }
             let monitor = Unmanaged<PowerMonitor>.fromOpaque(ctx).takeUnretainedValue()
             DispatchQueue.main.async {
                 monitor.handlePowerSourceEvent()
-            }
-            // Note: multiple staggered refreshes exist to compensate for IOKit lag on plug/unplug.
-            // This can cause bursts on rapid events (review Suggestion 7). Consider future coalescing
-            // with a cancellable DispatchWorkItem if noisy updates become a problem.
-            for delay: TimeInterval in [0.1, 0.3, 0.6, 1.0, 1.5, 2.0, 3.0, 5.0] {
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    monitor.updateData()
-                }
             }
         }
         powerSourceNotifier = IOPSNotificationCreateRunLoopSource(callback, context)?.takeRetainedValue()
@@ -112,18 +139,41 @@ final class PowerMonitor {
         }
     }
 
+    private func scheduleCoalescedRefreshes() {
+        cancelPendingRefreshes()
+        for delay: TimeInterval in [0.1, 0.3, 0.6, 1.0, 1.5, 2.0, 3.0, 5.0] {
+            let work = DispatchWorkItem { [weak self] in
+                Task { @MainActor in
+                    self?.updateData()
+                }
+            }
+            pendingRefreshWorkItems.append(work)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        }
+    }
+
+    private func cancelPendingRefreshes() {
+        pendingRefreshWorkItems.forEach { $0.cancel() }
+        pendingRefreshWorkItems.removeAll()
+    }
+
     // MARK: - Timer
 
     private func scheduleTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { [weak self] _ in
+        timer?.invalidate()
+        let newTimer = Timer(timeInterval: updateInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.updateData()
             }
         }
+        RunLoop.main.add(newTimer, forMode: .common)
+        timer = newTimer
     }
 
     private func updateData() {
-        publishDisplayData(from: readPowerData())
+        let (raw, available) = readPowerData()
+        isDataAvailable = available
+        publishDisplayData(from: raw)
     }
 
     private func handlePowerSourceEvent() {
@@ -132,7 +182,6 @@ final class PowerMonitor {
             return
         }
 
-        // Always record last known good value on successful read (fixes review Bug 2)
         let previous = lastExternalConnected
         lastExternalConnected = connected
 
@@ -145,6 +194,7 @@ final class PowerMonitor {
             }
         }
         updateData()
+        scheduleCoalescedRefreshes()
     }
 
     private func publishDisplayData(from raw: PowerData) {
@@ -155,8 +205,6 @@ final class PowerMonitor {
     private func advanceMachinePhase(with raw: PowerData) {
         switch machinePhase {
         case .onBattery:
-            // Suppress transition on stale isOnAC=true immediately after an explicit IOPS unplug event.
-            // ExternalConnected=false from the event is authoritative (fixes review Bug 1).
             if let t = lastUnplugEventAt, Date().timeIntervalSince(t) < 1.5 {
                 return
             }
@@ -168,7 +216,8 @@ final class PowerMonitor {
         case .connectingAC(let since):
             if !raw.isOnAC {
                 machinePhase = .onBattery
-            } else if hasResolvedACState(raw) || Date().timeIntervalSince(since) >= connectingACTimeout {
+            } else if hasResolvedACStateDuringConnecting(raw)
+                || Date().timeIntervalSince(since) >= connectingACTimeout {
                 machinePhase = .onAC
                 lastUnplugEventAt = nil
             }
@@ -180,10 +229,17 @@ final class PowerMonitor {
         }
     }
 
-    private func hasResolvedACState(_ raw: PowerData) -> Bool {
+    /// During AC connecting, stale pre-unplug SystemPowerIn must not alone prove convergence.
+    private func hasResolvedACStateDuringConnecting(_ raw: PowerData) -> Bool {
         guard raw.isOnAC else { return false }
-        if raw.acInputW > 0 { return true }
+
         if raw.isCharging && raw.batteryPowerW < -0.3 { return true }
+        if let amp = raw.batteryAmperageMA, amp < -50 { return true }
+        if let cc = raw.chargingCurrentMA, cc > 0, raw.batteryPowerW < -0.3 { return true }
+
+        guard raw.acInputW > 0.3, raw.systemPowerW > 0 else { return false }
+        if raw.batteryPowerW < -0.3 { return true }
+        if raw.acInputW >= raw.systemPowerW - 0.5 { return true }
         return false
     }
 
@@ -202,9 +258,9 @@ final class PowerMonitor {
 
     // MARK: - IOKit Reading
 
-    private nonisolated func readPowerData() -> PowerData {
+    private nonisolated func readPowerData() -> (PowerData, Bool) {
         guard let props = getIOServiceProperties(className: "AppleSmartBattery") else {
-            return .empty
+            return (.empty, false)
         }
 
         // Basic battery info
@@ -288,7 +344,7 @@ final class PowerMonitor {
                 batteryTemperatureC: temperature.map { Double($0) / 100.0 },
                 cycleCount: cycleCount, adapterDescription: adapterDescription,
                 dataSource: ds, timestamp: Date(),
-                connectionPhase: .onBattery,  // will be overwritten by withConnectionPhase in publish (review Issue 6)
+                connectionPhase: .onBattery,
                 batteryHealthPercent: batteryHealthPercent,
                 designCapacityMAH: designCapacity, rawMaxCapacityMAH: rawMaxCapacity,
                 nominalChargeCapacityMAH: nominalChargeCapacity,
@@ -313,10 +369,6 @@ final class PowerMonitor {
         }
 
         // IOKit sign convention: Amperage > 0 = discharge, < 0 = charge.
-    //
-    // Note (review Nit 9): raw `isOnAC` (from ExternalConnected snapshot) is the hardware truth
-    // used inside telemetry/legacy calculations. The published PowerData uses `connectionPhase`
-    // + effective* computed properties as the UI-facing truth. The two layers are intentionally distinct.
         let amperagePowerW: Double? = {
             guard let a = amperage, let v = voltage, a != 0, v > 0 else { return nil }
             return Double(a) * Double(v) / 1_000_000.0
@@ -357,11 +409,14 @@ final class PowerMonitor {
                 sysCurrent: sysCurrent
             )
 
-            return buildResult(
-                systemPowerW, batteryPowerW, acInputW,
-                wallEnergy.map { Double($0) / 1000.0 },
-                adapterLoss.map { Double($0) / 1000.0 },
-                sysVoltage, sysCurrent, .telemetry
+            return (
+                buildResult(
+                    systemPowerW, batteryPowerW, acInputW,
+                    wallEnergy.map { Double($0) / 1000.0 },
+                    adapterLoss.map { Double($0) / 1000.0 },
+                    sysVoltage, sysCurrent, .telemetry
+                ),
+                true
             )
         }
 
@@ -379,7 +434,7 @@ final class PowerMonitor {
             }
         }
 
-        return buildResult(systemPowerW, batteryPowerW, 0, nil, nil, nil, nil, .legacy)
+        return (buildResult(systemPowerW, batteryPowerW, 0, nil, nil, nil, nil, .legacy), true)
     }
 
     private enum BatteryFlow {

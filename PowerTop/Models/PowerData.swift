@@ -249,7 +249,6 @@ struct PowerData {
     /// Primary wattage shown in the popover header.
     var headerPowerW: Double {
         if isConnectingAC || !effectiveIsOnAC || isSupplementalDischarge { return systemPowerW }
-        if isBatteryCharging { return effectiveACOutputW }
         return effectiveACOutputW
     }
 
@@ -324,7 +323,6 @@ struct PowerData {
     ) // delegates to private init below (centralized)
 
     func withConnectionPhase(_ phase: PowerConnectionPhase) -> PowerData {
-        // Delegates to the single private full init (reduces risk of assignment drift on future fields, review Suggestion 5)
         PowerData(
             systemPowerW: systemPowerW, batteryPowerW: batteryPowerW, acInputW: acInputW,
             acAdapterWattage: acAdapterWattage, batteryPercent: batteryPercent,

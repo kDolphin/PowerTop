@@ -115,3 +115,6 @@
 "Device Information" = "设备信息";
 "Battery Serial Number" = "电池序列号";
 "Battery Gauge Chip" = "电量计芯片";
+
+// Hardware availability
+"Built-in battery not detected. PowerTop requires a MacBook." = "未检测到内置电池。PowerTop 仅支持 MacBook。";
