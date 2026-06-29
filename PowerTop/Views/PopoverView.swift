@@ -40,30 +40,32 @@ struct PopoverView: View {
     }
 
     var body: some View {
-        // Measure ideal size on the raw content first, then fixedSize (so it hugs its own ideal height
-        // even if the window proposes more space), then apply the width frame. This gives accurate
-        // height for shrinking/expanding without leaving blank areas on state changes.
-        contentSections
-            .background(PopoverHeightObserver())
-            .fixedSize(horizontal: true, vertical: true)
-            .frame(width: Self.popoverWidth, alignment: .topLeading)
-            .onPreferenceChange(PopoverHeightPreferenceKey.self) { height in
-                if height > 1 {
-                    measuredContentHeight = height
-                    DispatchQueue.main.async {
-                        fitPopoverWindow(to: height)
-                    }
-                }
-            }
-            .onChange(of: layoutSignature) { _, _ in
-                scheduleWindowFit(after: 0.04)
-            }
-            .onAppear {
-                scheduleWindowFit(after: 0)
+        // Use ZStack so the GeometryReader sees the exact size of the contentSections (intrinsic).
+        // This is more reliable for getting the true height the content wants, avoiding the window
+        // proposal affecting the measured value (main cause of blank space or wrong sizing).
+        ZStack(alignment: .topLeading) {
+            contentSections
+            PopoverHeightObserver()
+        }
+        .fixedSize(horizontal: true, vertical: true)
+        .frame(width: Self.popoverWidth, alignment: .topLeading)
+        .onPreferenceChange(PopoverHeightPreferenceKey.self) { height in
+            if height > 1 {
+                measuredContentHeight = height
                 DispatchQueue.main.async {
-                    NSApp.keyWindow?.makeFirstResponder(nil)
+                    fitPopoverWindow(to: height)
                 }
             }
+        }
+        .onChange(of: layoutSignature) { _, _ in
+            scheduleWindowFit(after: 0.04)
+        }
+        .onAppear {
+            scheduleWindowFit(after: 0)
+            DispatchQueue.main.async {
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+        }
     }
 
     // The actual stacked sections (no extra frame/fixed/background here).
@@ -72,19 +74,19 @@ struct PopoverView: View {
             headerSection
             Divider().padding(.horizontal, 12)
             powerFlowDiagram
-                .padding(.vertical, 6)
+                .padding(.vertical, 8)
             Divider().padding(.horizontal, 12)
             metricsSection
                 .padding(.horizontal, 14)
-                .padding(.vertical, 6)
+                .padding(.vertical, 8)
             Divider().padding(.horizontal, 12)
             batterySection
                 .padding(.horizontal, 14)
-                .padding(.vertical, 6)
+                .padding(.vertical, 8)
             Divider().padding(.horizontal, 12)
             footerSection
                 .padding(.horizontal, 14)
-                .padding(.vertical, 6)
+                .padding(.vertical, 8)
         }
     }
 
@@ -114,8 +116,8 @@ struct PopoverView: View {
             Spacer()
         }
         .padding(.horizontal, 14)
-        .padding(.top, 10)
-        .padding(.bottom, 6)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
     }
 
     // MARK: - Power Flow Diagram
@@ -255,7 +257,7 @@ struct PopoverView: View {
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(color)
         }
-        .padding(.horizontal, 8).padding(.vertical, 4)
+        .padding(.horizontal, 10).padding(.vertical, 5)
         .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
     }
 
@@ -270,7 +272,7 @@ struct PopoverView: View {
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(color)
         }
-        .padding(.horizontal, 8).padding(.vertical, 4)
+        .padding(.horizontal, 10).padding(.vertical, 5)
         .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
     }
 
