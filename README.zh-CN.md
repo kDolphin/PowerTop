@@ -2,9 +2,9 @@
 
 **[English](README.md)** | **简体中文**
 
-一个原生 macOS 菜单栏应用，用于 Apple Silicon MacBook 的实时功耗监控。
+Apple Silicon MacBook 的实时功耗监控菜单栏应用。从 IOKit `AppleSmartBattery` 的 `PowerTelemetryData` 读取遥测，叠加事件驱动连接阶段状态机，在插拔电源、遥测滞后、补充放电等边界条件下给出一致的功率流向与读数。
 
-> **⚠️ 仅支持 MacBook** — PowerTop 需要内置电池。Mac mini、Mac Studio、Mac Pro 不受支持。
+> **⚠️ 仅支持 MacBook** — 需要内置电池。Mac mini、Mac Studio、Mac Pro 无 `AppleSmartBattery` 服务，不受支持。
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.2.0-blue" />
@@ -13,68 +13,136 @@
   <img src="https://img.shields.io/badge/license-MIT-orange" />
 </p>
 
-## 功能特性
+## 动机
 
-- **实时功率流向图** — 可视化 AC 适配器、电池和系统之间的功率流向
-- **补充放电检测** — 适配器功率不足时，显示 AC 与电池并联向系统供电
-- **菜单栏功率显示** — 可选择在菜单栏显示实时功率，按场景切换数值与警告标识
-- **插拔电源即时响应** — 事件驱动状态机在拔掉或插入充电器时立即切换状态
-- **瞬时功率指标** — 系统功耗、AC 适配器输出、电池充放电功率
-- **电池健康** — 健康度百分比、循环次数、设计容量、温度
-- **详细参数** — 电芯数据、充电详情、生命周期统计
-- **电源变更通知** — 插拔电源即时刷新界面
-- **双语支持** — 中文和英文，跟随系统语言
-- **开机启动** — 可选登录时自动启动
-- **原生 macOS 体验** — SwiftUI 构建，菜单栏应用，无 Dock 图标
+macOS 不直接暴露「系统此刻消耗多少瓦」这类读数。活动监视器可看进程能耗，但无法回答：
 
-## 更新内容
+- 插着 30 W 适配器跑峰值负载时，AC 与电池如何并联供电？
+- 拔掉电源后，滞后的 `SystemPowerIn` 会不会让界面仍显示在充电？
+- 电池 idle 时 `BatteryPower` 符号不明确，系统功耗会不会误报 0 W？
 
-### v1.2.0
+PowerTop 针对这些问题：用 IOKit 原始遥测 + 物理功率流向交叉校验 + 连接阶段状态机，在菜单栏和详情窗口给出可解释的实时功率图。
 
-- **详细参数窗口重设计** — 合并「当前电源」与充电状态，标签与 Popover 统一，去掉内部遥测术语
-- **平铺布局** — 所有分区默认展开（无折叠）；修复首次打开时的蓝色焦点框
-- **菜单栏即时更新** — 启动即开始监控；休眠唤醒后无需点击即可刷新读数
-- **0W 修复** — 电池供电 idle 状态下，电池遥测符号不明确时回退使用 `SystemLoad`
-- **电芯均衡摘要** — 详情页显示电芯压差与可读状态
+## 架构
 
-### v1.1.9
+```
+IOKit AppleSmartBattery
+        │
+        ▼
+  readPowerData()          ← PowerTelemetryData + 电芯/健康/生命周期字段
+        │
+        ▼
+  resolveBatteryFlow()     ← 充放电极性、能量平衡、IsCharging 矛盾处理
+        │
+        ▼
+  computePowerMetrics()    ← 四种工作模式下的系统/AC/电池功率
+        │
+        ▼
+  连接阶段状态机            ← ExternalConnected 边沿 + 3s 超时收敛
+        │
+        ▼
+  PowerMonitor (@Observable) → Popover / 详情窗 / 菜单栏 Label
+```
 
-- **插上电源滞后数据修复** — 上一段 AC 会话残留的 `SystemPowerIn` 不再导致跳过「AC 连接中」
-- **休眠/唤醒可靠性** — 改用 block 观察者；休眠时停止轮询、唤醒后恢复
-- **定时器与 IOPS 健壮性** — 定时器重建前先 invalidate；插拔刷新合并调度
-- **不支持设备提示** — 未检测到内置电池时显示横幅与菜单栏警告
-- **登录时启动反馈** — 注册失败时显示内联错误提示
+| 组件 | 职责 |
+|---|---|
+| `AppDelegate` | `applicationDidFinishLaunching` 即 `monitor.start()`；退出时 `stop()`；唤醒后 `refreshNow()` |
+| `PowerMonitor` | 2 s 定时轮询 + IOPS 电源变更通知；休眠停表、唤醒恢复 |
+| `PowerData` | 展示层快照：功率指标、连接阶段、健康/电芯/生命周期等 |
+| `MenuBarLabelView` | 直接观察 `monitor`；`uiRefreshToken` + `.id()` 强制菜单栏重绘 |
 
-### v1.1.8
+数据源优先级：`PowerTelemetryData` 字典为主；缺失时回退 legacy 字段（`Amperage` × `Voltage` 等）。
 
-- **修复 Popover 右边空白** — 内容正确撑满 280px 宽度
-- **改进 Popover 动态尺寸** — ZStack + PreferenceKey 获得更可靠的高度测量
-- **状态机正确性修复** — 拔掉后可靠停留在电池模式；更好跟踪 `ExternalConnected`
+## 界面与数据出口
 
-[更早版本 →](https://github.com/kDolphin/PowerTop/releases)
+| 出口 | 内容 |
+|---|---|
+| **菜单栏图标** | 默认仅图标：AC 为 `bolt.fill`，电池为 `battery.50`；无电池硬件时 `exclamationmark.triangle` |
+| **Popover（280 px）** | 功率流向图、瞬时指标、充电器负载率、未充电原因、底部开关与快捷入口 |
+| **详细参数窗口** | 当前电源（含充电上下文）、电池健康、电芯压差、充电详情、生命周期、设备信息；无数据分区自动隐藏 |
+| **菜单栏功率文字** | **默认关闭**；在 Popover 底部开启「菜单栏显示功率」后显示 `19W` 等读数 |
 
-## 截图
+Popover 用 `ZStack` + `PreferenceKey` 测量内在高度，避免状态切换后出现空白；详情窗为平铺卡片，无折叠组。
 
-*菜单栏 Popover 展示 AC 充电状态与功率流向图*
+## 遥测字段
 
-*详细参数窗口展示电池与功耗数据*
+`readPowerData()` 从 `AppleSmartBattery` 读取，`PowerTelemetryData` 核心键：
+
+| IOKit 属性 | 单位 / 含义 |
+|---|---|
+| `SystemLoad` | mW → 系统总功耗 |
+| `SystemPowerIn` | mW → AC 适配器直流输入 |
+| `BatteryPower` | mW → 电池功率（放电为正、充电为负，与遥测符号交叉校验） |
+| `Amperage` × `Voltage` | 带符号电池功率；`Amperage × Voltage / 1,000,000` |
+| `ExternalConnected` | AC 物理连接；边沿事件驱动连接阶段 |
+| `IsCharging` / `FullyCharged` | 充电标志；与电流极性矛盾时以物理流向为准 |
+| `AdapterDetails` | 额定功率、描述等 |
+
+详情窗还展示电芯电压数组、Qmax、循环/设计容量、温度与生命周期极值等——均来自同一 IOKit 属性包，非第三方 SDK。
+
+## 四种工作模式
+
+| 模式 | 条件 | 功率流向 |
+|---|---|---|
+| **电池供电** | `ExternalConnected = false` | 电池 → 系统 |
+| **AC 供电** | 插 AC，适配器满足负载，未充电 | AC → 系统 |
+| **AC 充电** | 插 AC，输入有盈余 | AC → 系统 + 电池 |
+| **AC + 电池补充** | 插 AC，峰值负载超过适配器输出 | AC → 系统，电池 → 系统（并联） |
+
+补充放电判定：`isOnAC && batteryPowerW > 0`（电池在放电）且非纯电池供电阶段。
+
+## 连接阶段状态机
+
+IOKit 遥测在插拔瞬间会滞后。PowerTop 在 `PowerConnectionPhase` 上叠加三阶段机：
+
+| 阶段 | 触发 | UI 行为 |
+|---|---|---|
+| **电池供电** | `ExternalConnected` 0→1 的反向边沿 | 立即切电池模式；清零/忽略滞后 `SystemPowerIn`、`IsCharging` |
+| **AC 连接中** | `ExternalConnected` 1 边沿 | 显示「AC 连接中」；等待 `SystemPowerIn` 或充电信号收敛 |
+| **AC 稳定** | 遥测收敛或 3 s 超时 | 进入上述四种工作模式之一 |
+
+插上电源时，若上一段 AC 会话残留非零 `SystemPowerIn`，需 `hasResolvedACStateDuringConnecting` 佐证后才跳过「连接中」——避免误进稳定 AC 态。
+
+## 功率计算要点
+
+- **AC 充电**：系统功耗 ≈ `SystemPowerIn` − 充电功率
+- **电池供电**：系统功耗 ≈ `BatteryPower`（放电即消耗）；idle 且符号不明时回退 `SystemLoad`
+- **补充放电**：系统功耗 ≈ `SystemLoad`；电池贡献来自带符号 `Amperage` / `BatteryPower`
+- **充放电率**：`Amperage × Voltage / 1,000,000`，与 `BatteryPower` 交叉验证
+- **拔掉**：`ExternalConnected = false` 优先于一切滞后标志
+- **插上**：立即信任 `ExternalConnected = true`；`SystemPowerIn` 更新前可估算
+
+## 菜单栏功率显示
+
+默认仅显示图标。在 Popover 底部打开「菜单栏显示功率」后：
+
+| 模式 | 显示值 | 样式 |
+|---|---|---|
+| 电池供电 | 系统功耗 | `19W` |
+| AC 充电 | AC 总输入 | `31W` |
+| AC + 电池补充 | 系统功耗 | `⚠ 33W` |
+| AC 供电 | 系统功耗 | `19W` |
+
+- 数值四舍五入；超过 99 W 封顶为 `99W`
+- macOS 菜单栏为系统单色，警告用 `⚠` 前缀（补充放电，或非补充场景下 >99 W）
+- 偏好写入 `UserDefaults`（`showPowerInMenuBar`）
 
 ## 系统要求
 
-- macOS 14.0（Sonoma）或更高版本
-- Apple Silicon **MacBook**（需要内置电池，Mac mini / Mac Studio / Mac Pro 不受支持）
+- macOS 14.0（Sonoma）或更高
+- Apple Silicon **MacBook**（内置电池）
 
 ## 安装
 
-### 下载安装
+### 下载
 
-从 [Releases 页面](https://github.com/kDolphin/PowerTop/releases) 下载最新版本。
+从 [Releases](https://github.com/kDolphin/PowerTop/releases) 下载 `PowerTop.zip`：
 
-1. 解压 `PowerTop.zip`
-2. 将 `PowerTop.app` 移动到 `/Applications`
-3. 首次启动时，右键点击应用选择**打开**（未签名应用需要此操作）
+1. 解压
+2. 将 `PowerTop.app` 移入 `/Applications`
+3. 首次启动：右键 → **打开**（未签名应用）
 
-### 从源码构建
+### 源码构建
 
 ```bash
 git clone https://github.com/kdolphin/PowerTop.git
@@ -83,75 +151,49 @@ bash build.sh
 open build/PowerTop.app
 ```
 
-`build.sh` 需要 Xcode（推荐）或版本匹配的 Swift SDK/工具链。构建成功后会生成：
+`build.sh` 需要 Xcode 或版本匹配的 Swift 工具链，产出 `build/PowerTop.app` 与 `build/PowerTop.zip`。
 
-- `build/PowerTop.app` — 可直接运行的应用
-- `build/PowerTop.zip` — 可分发用的压缩包
+## 技术栈
 
-## 工作原理
+- **Swift 5** + **SwiftUI**（`MenuBarExtra`、独立 `Window` 场景）
+- **Observation**（`@Observable` `PowerMonitor`）
+- **IOKit** / **IOKit.ps**（`AppleSmartBattery`、IOPS 通知）
+- **ServiceManagement**（`SMAppService` 登录项）
+- 本地化：英文 + 简体中文（`Localizable.strings`，跟随系统语言）
 
-PowerTop 通过 macOS IOKit 的 `AppleSmartBattery` 服务读取功耗数据，主要使用 `PowerTelemetryData` 字典：
+## 更新内容
 
-| IOKit 属性 | 说明 |
-|---|---|
-| `SystemLoad` | 系统总功耗 |
-| `SystemPowerIn` | AC 适配器输入的直流功率 |
-| `BatteryPower` | 电池充放电功率 |
-| `Amperage` × `Voltage` | 带符号的电池功率（负 = 充电，正 = 放电） |
-| `ExternalConnected` | AC 适配器是否物理连接 |
+### v1.2.0
 
-### 连接状态机
+- 详细参数窗口重设计：合并当前电源与充电上下文；与 Popover 标签统一
+- 平铺布局，去掉折叠组；修复首次打开蓝色焦点框
+- 启动即监控；`uiRefreshToken` 修复菜单栏休眠唤醒后不刷新
+- 电池 idle 时 `SystemLoad` 回退，修复 0 W
+- 电芯压差摘要
 
-PowerTop 在 IOKit 遥测之上叠加事件驱动状态机：
+### v1.1.9
 
-| 阶段 | 触发条件 | 界面 |
-|---|---|---|
-| **电池供电** | 检测到拔掉（`ExternalConnected=false`） | 立即显示电池放电，忽略滞后的 AC 数据 |
-| **AC 连接中** | 检测到插入（`ExternalConnected=true`） | 显示「AC 连接中」，等待 `SystemPowerIn` 或充电信号 |
-| **AC 稳定** | 遥测收敛或 3 秒超时 | 进入充电 / 供电 / 补充放电 |
+- 插上电源滞后遥测：残留 `SystemPowerIn` 不再跳过「AC 连接中」
+- 休眠/唤醒 block 观察者；定时器重建前 invalidate
+- 无电池设备横幅与菜单栏警告；登录项失败内联错误
 
-### 功率状态
+### v1.1.8
 
-PowerTop 识别四种工作模式：
+- Popover 280 px 满宽；ZStack + PreferenceKey 动态高度
+- 拔掉后可靠停留电池模式；改进 `ExternalConnected` 跟踪
 
-| 模式 | 条件 | 功率流向 |
-|---|---|---|
-| **电池供电** | 未插电源 | 电池 → 系统 |
-| **AC 供电** | 插电源，适配器满足负载，未充电 | AC → 系统 |
-| **AC 充电** | 插电源，AC 有剩余功率 | AC → 系统 + 电池 |
-| **AC + 电池补充** | 插电源，适配器无法满足峰值负载 | AC → 系统，电池 → 系统 |
+[更早版本 →](https://github.com/kDolphin/PowerTop/releases)
 
-### 菜单栏功率显示
+## 截图
 
-开启后，菜单栏显示四舍五入的功率文字（如 `19W`）。实际功率超过 99 W 时，显示封顶为 `99W`。macOS 菜单栏为系统单色文字，因此用 `⚠` 前缀代替红/橙色。
+*菜单栏 Popover：AC 充电状态与功率流向图*
 
-| 模式 | 菜单栏显示 | 文字样式 |
-|---|---|---|
-| **电池供电** | 系统功耗 | `19W` |
-| **AC 充电** | AC 总输入 | `31W` |
-| **AC + 电池补充** | 系统功耗 | `⚠ 33W` — 插着 AC 电池仍在放电 |
-| **AC 供电** | 系统功耗 | `19W` |
-
-**警告规则**
-
-- **`⚠` 前缀** — 补充放电：已连接 AC，但电池仍在向系统供电
-- **`⚠` 前缀** — 非补充放电场景下，功率超过 99 W（文字仍显示 `99W`）
-- **无前缀** — 其余情况
-
-### 功率计算逻辑
-
-- **AC 充电时**：系统功耗 = `SystemPowerIn` - 充电功率（AC 输入减去向电池供电的部分）
-- **电池供电时**：系统功耗 = `BatteryPower`（放电功率 = 系统消耗）
-- **补充放电时**：系统功耗 = `SystemLoad`；电池贡献功率来自带符号的 `Amperage` / `BatteryPower`
-- **充放电功率**：由带符号的 `Amperage × Voltage / 1,000,000` 计算，并与 `BatteryPower` 遥测交叉验证
-- **拔掉时**：`ExternalConnected=false` 优先，忽略滞后的 `SystemPowerIn` 和 `IsCharging`
-- **插上时**：立即信任 `ExternalConnected=true`，在 `SystemPowerIn` 更新前可估算功率
-- **滞后标志处理**：当 `IsCharging` 与电流极性或能量平衡矛盾时，以实际功率流向信号为准
+*详细参数窗口：电池健康、电芯与功耗数据*
 
 ## 本地化
 
-PowerTop 支持中文和英文，自动跟随系统语言。也可在 **系统设置 → 通用 → 语言与地区 → 应用程序** 中单独指定。
+跟随系统语言；可在 **系统设置 → 通用 → 语言与地区 → 应用程序** 单独指定 PowerTop 语言。
 
 ## 许可证
 
-MIT 许可证。详见 [LICENSE](LICENSE)。
+MIT。详见 [LICENSE](LICENSE)。

@@ -2,9 +2,9 @@
 
 **English** | **[简体中文](README.zh-CN.md)**
 
-A native macOS menu bar app for real-time power monitoring on Apple Silicon MacBooks.
+A menu bar app for real-time power monitoring on Apple Silicon MacBooks. It reads `PowerTelemetryData` from IOKit's `AppleSmartBattery` service, layers an event-driven connection-phase state machine on top, and produces consistent power-flow readings across plug/unplug edges, stale telemetry, and supplemental discharge.
 
-> **⚠️ MacBook only** — PowerTop requires a built-in battery. Mac mini, Mac Studio, and Mac Pro are not supported.
+> **⚠️ MacBook only** — Requires a built-in battery. Mac mini, Mac Studio, and Mac Pro lack `AppleSmartBattery` and are not supported.
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.2.0-blue" />
@@ -13,66 +13,134 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
   <img src="https://img.shields.io/badge/license-MIT-orange" />
 </p>
 
-## Features
+## Motivation
 
-- **Real-time Power Flow Diagram** — Visualize how power flows between AC adapter, battery, and system
-- **Supplemental Discharge Detection** — When the adapter cannot meet peak load, shows AC and battery supplying the system in parallel
-- **Menu Bar Power Display** — Optional live wattage in the menu bar, with scenario-aware values and warning indicators
-- **Instant AC Plug/Unplug Response** — Event-driven state machine switches to battery or AC connecting immediately when the charger is removed or attached
-- **Instant Power Metrics** — System power consumption, AC adapter output, battery charge/discharge rate
-- **Battery Health** — Health percentage, cycle count, design capacity, temperature
-- **Detailed Parameters** — Deep dive into battery cell data, charging details, lifetime statistics
-- **Power Source Notifications** — Instant UI refresh when AC is plugged/unplugged
-- **Bilingual Support** — English & Chinese (Simplified), follows system language
-- **Launch at Login** — Option to start automatically on login
-- **Native macOS Experience** — Built with SwiftUI, menu bar app with no dock icon
+macOS does not surface a single "how many watts is the system drawing right now" reading. Activity Monitor shows per-process energy, but not:
 
-## What's New
+- When a 30 W adapter is plugged in under peak load, how do AC and battery supply the system in parallel?
+- After unplugging, can stale `SystemPowerIn` make the UI still look like it's on AC?
+- When the battery is idle and `BatteryPower` signs are ambiguous, does system power falsely read 0 W?
 
-### v1.2.0
+PowerTop addresses these with raw IOKit telemetry, physical power-flow cross-checks, and a connection-phase state machine — rendered in the menu bar and a detail window.
 
-- **Redesigned detail window** — Merged power and charging into a contextual "Current Power" section; labels aligned with the popover; user-friendly copy instead of internal telemetry jargon
-- **Flat detail layout** — All sections expanded by default (no disclosure groups); removed the blue focus ring on first open
-- **Instant menu bar updates** — Power monitoring starts at launch; menu bar label refreshes immediately on wake without needing a click
-- **0 W fix** — Battery-powered idle state now falls back to `SystemLoad` when battery telemetry signs are ambiguous
-- **Cell balance summary** — Detail view shows per-cell voltage spread with a plain-language status
+## Architecture
 
-### v1.1.9
+```
+IOKit AppleSmartBattery
+        │
+        ▼
+  readPowerData()          ← PowerTelemetryData + cell/health/lifetime fields
+        │
+        ▼
+  resolveBatteryFlow()     ← charge/discharge polarity, energy balance, stale IsCharging
+        │
+        ▼
+  computePowerMetrics()    ← system/AC/battery watts per operating mode
+        │
+        ▼
+  Connection-phase FSM     ← ExternalConnected edges + 3 s convergence timeout
+        │
+        ▼
+  PowerMonitor (@Observable) → Popover / detail window / menu bar label
+```
 
-- **Plug-in stale telemetry fix** — "AC Connecting" no longer skipped when stale `SystemPowerIn` lingers from a previous session
-- **Sleep/wake reliability** — Block-based workspace observers; timer stops during sleep and resumes on wake
-- **Timer & IOPS robustness** — Timer invalidates before reschedule; coalesced plug/unplug refreshes
-- **Unsupported hardware UX** — Banner and menu bar warning when no built-in battery is detected
-- **Launch at Login feedback** — Inline error when registration fails
+| Component | Role |
+|---|---|
+| `AppDelegate` | Calls `monitor.start()` at `applicationDidFinishLaunching`; `stop()` on quit; `refreshNow()` on wake |
+| `PowerMonitor` | 2 s polling + IOPS power-source notifications; pauses timer during sleep |
+| `PowerData` | Display snapshot: power metrics, connection phase, health/cell/lifetime fields |
+| `MenuBarLabelView` | Observes `monitor` directly; `uiRefreshToken` + `.id()` forces menu bar redraw |
 
-### v1.1.8
+Primary data path: `PowerTelemetryData` dictionary; falls back to legacy fields (`Amperage` × `Voltage`, etc.) when missing.
 
-- **Fixed popover right-side blank** — Content fills the full 280px width
-- **Improved dynamic popover sizing** — Reliable intrinsic height measurement via ZStack + PreferenceKey
-- **State machine correctness fixes** — Unplug reliably stays on battery; better `ExternalConnected` tracking
+## UI & Data Surfaces
 
-[Older releases →](https://github.com/kDolphin/PowerTop/releases)
+| Surface | Content |
+|---|---|
+| **Menu bar icon** | Default icon only: `bolt.fill` on AC, `battery.50` on battery; `exclamationmark.triangle` when no battery hardware |
+| **Popover (280 px)** | Power-flow diagram, instant metrics, adapter load rate, not-charging reason, bottom toggles and shortcuts |
+| **Detail window** | Current power (with charging context), battery health, cell voltage spread, charging details, lifetime stats, device info; empty sections hidden |
+| **Menu bar wattage** | **Off by default**; enable "Show Power in Menu Bar" at the bottom of the popover for labels like `19W` |
 
-## Screenshots
+The popover uses `ZStack` + `PreferenceKey` for intrinsic height measurement to avoid blank space on state changes. The detail window uses flat cards with no disclosure groups.
 
-*Menu bar popover showing AC charging state with power flow diagram*
+## Telemetry Fields
 
-*Detail window with comprehensive battery and power parameters*
+`readPowerData()` reads from `AppleSmartBattery`. Core `PowerTelemetryData` keys:
+
+| IOKit property | Units / meaning |
+|---|---|
+| `SystemLoad` | mW → total system power |
+| `SystemPowerIn` | mW → DC input from AC adapter |
+| `BatteryPower` | mW → battery power (discharge positive, charge negative; cross-checked) |
+| `Amperage` × `Voltage` | Signed battery power; `Amperage × Voltage / 1,000,000` |
+| `ExternalConnected` | AC physically connected; edge events drive connection phase |
+| `IsCharging` / `FullyCharged` | Charge flags; physical flow wins when flags disagree with amperage |
+| `AdapterDetails` | Rated wattage, description, etc. |
+
+The detail window also surfaces cell voltage arrays, Qmax, cycle/design capacity, temperature, and lifetime extremes — all from the same IOKit property bundle, no third-party SDK.
+
+## Four Operating Modes
+
+| Mode | Condition | Power flow |
+|---|---|---|
+| **Battery powered** | `ExternalConnected = false` | Battery → System |
+| **AC powered** | On AC, adapter meets load, not charging | AC → System |
+| **AC charging** | On AC, surplus input available | AC → System + Battery |
+| **AC + battery supplement** | On AC, peak load exceeds adapter output | AC → System, Battery → System (parallel) |
+
+Supplemental discharge: `isOnAC && batteryPowerW > 0` (battery discharging) while not in pure battery-powered phase.
+
+## Connection-Phase State Machine
+
+IOKit telemetry lags on plug/unplug edges. PowerTop layers three phases on `PowerConnectionPhase`:
+
+| Phase | Trigger | UI behavior |
+|---|---|---|
+| **On battery** | Falling edge of `ExternalConnected` | Immediate battery mode; stale `SystemPowerIn` / `IsCharging` ignored |
+| **AC connecting** | Rising edge of `ExternalConnected` | "AC Connecting" until `SystemPowerIn` or charging signals converge |
+| **On AC** | Telemetry converged or 3 s timeout | One of the four operating modes above |
+
+On plug-in, non-zero `SystemPowerIn` lingering from a prior AC session no longer skips "AC Connecting" without `hasResolvedACStateDuringConnecting` corroboration.
+
+## Power Calculation Notes
+
+- **AC charging**: System power ≈ `SystemPowerIn` − charge rate
+- **On battery**: System power ≈ `BatteryPower` (discharge = consumption); falls back to `SystemLoad` when idle and signs are ambiguous
+- **Supplemental discharge**: System power ≈ `SystemLoad`; battery contribution from signed `Amperage` / `BatteryPower`
+- **Charge/discharge rate**: `Amperage × Voltage / 1,000,000`, cross-checked against `BatteryPower`
+- **Unplug**: `ExternalConnected = false` overrides all stale flags
+- **Plug-in**: Trust `ExternalConnected = true` immediately; estimate until `SystemPowerIn` updates
+
+## Menu Bar Power Display
+
+Icon only by default. After enabling "Show Power in Menu Bar" at the bottom of the popover:
+
+| Mode | Shows | Label |
+|---|---|---|
+| Battery powered | System power | `19W` |
+| AC charging | Total AC input | `31W` |
+| AC + battery supplement | System power | `⚠ 33W` |
+| AC powered | System power | `19W` |
+
+- Values rounded; capped at `99W` above 99 W
+- macOS menu bar text is system-monochrome; warnings use a `⚠` prefix (supplemental discharge, or >99 W otherwise)
+- Preference stored in `UserDefaults` (`showPowerInMenuBar`)
 
 ## Requirements
 
 - macOS 14.0 (Sonoma) or later
-- Apple Silicon **MacBook** (battery required — Mac mini / Mac Studio / Mac Pro not supported)
+- Apple Silicon **MacBook** (built-in battery)
 
 ## Installation
 
 ### Download
 
-Download the latest release from the [Releases page](https://github.com/kDolphin/PowerTop/releases).
+Get `PowerTop.zip` from [Releases](https://github.com/kDolphin/PowerTop/releases):
 
-1. Unzip `PowerTop.zip`
+1. Unzip
 2. Move `PowerTop.app` to `/Applications`
-3. On first launch, right-click the app and select **Open** (required for unsigned apps)
+3. First launch: right-click → **Open** (unsigned app)
 
 ### Build from Source
 
@@ -83,75 +151,49 @@ bash build.sh
 open build/PowerTop.app
 ```
 
-`build.sh` requires Xcode (recommended) or a matching Swift SDK/toolchain. On success it outputs:
+`build.sh` requires Xcode or a matching Swift toolchain. Outputs `build/PowerTop.app` and `build/PowerTop.zip`.
 
-- `build/PowerTop.app` — runnable app bundle
-- `build/PowerTop.zip` — zip archive ready for distribution
+## Tech Stack
 
-## How It Works
+- **Swift 5** + **SwiftUI** (`MenuBarExtra`, standalone `Window` scene)
+- **Observation** (`@Observable` `PowerMonitor`)
+- **IOKit** / **IOKit.ps** (`AppleSmartBattery`, IOPS notifications)
+- **ServiceManagement** (`SMAppService` login item)
+- Localization: English + Simplified Chinese (`Localizable.strings`, follows system language)
 
-PowerTop reads power data from macOS IOKit's `AppleSmartBattery` service, specifically the `PowerTelemetryData` dictionary which provides:
+## What's New
 
-| IOKit Property | Description |
-|---|---|
-| `SystemLoad` | Total system power consumption |
-| `SystemPowerIn` | DC power from AC adapter |
-| `BatteryPower` | Battery charge/discharge power |
-| `Amperage` × `Voltage` | Signed battery power flow (negative = charging, positive = discharging) |
-| `ExternalConnected` | Whether the AC adapter is physically connected |
+### v1.2.0
 
-### Connection State Machine
+- Redesigned detail window: merged current power and charging context; labels aligned with popover
+- Flat layout, no disclosure groups; removed blue focus ring on first open
+- Monitoring starts at launch; `uiRefreshToken` fixes menu bar stale reads after sleep/wake
+- `SystemLoad` fallback on battery idle fixes 0 W
+- Cell voltage spread summary
 
-PowerTop layers an event-driven state machine on top of IOKit telemetry:
+### v1.1.9
 
-| Phase | Trigger | UI |
-|---|---|---|
-| **On battery** | Unplug detected (`ExternalConnected=false`) | Battery discharge — immediate, ignores stale AC telemetry |
-| **AC connecting** | Plug detected (`ExternalConnected=true`) | "AC Connecting" until `SystemPowerIn` or charging signals arrive |
-| **On AC** | Telemetry converged or 3 s timeout | Normal AC charging / powered / supplemental discharge |
+- Plug-in stale telemetry: lingering `SystemPowerIn` no longer skips "AC Connecting"
+- Block-based sleep/wake observers; timer invalidates before reschedule
+- No-battery hardware banner and menu bar warning; inline login-item error
 
-### Power States
+### v1.1.8
 
-PowerTop recognizes four operating modes:
+- Popover fills 280 px width; ZStack + PreferenceKey dynamic height
+- Reliable battery mode after unplug; improved `ExternalConnected` tracking
 
-| Mode | Condition | Power Flow |
-|---|---|---|
-| **Battery powered** | Unplugged | Battery → System |
-| **AC powered** | Plugged in, adapter meets load, not charging | AC → System |
-| **AC charging** | Plugged in, surplus AC available | AC → System + Battery |
-| **AC + battery supplement** | Plugged in, adapter under peak load | AC → System, Battery → System |
+[Older releases →](https://github.com/kDolphin/PowerTop/releases)
 
-### Menu Bar Power Display
+## Screenshots
 
-When enabled, the menu bar shows a rounded wattage label (e.g. `19W`). Values above 99 W are capped at `99W`. macOS menu bar text uses a single system color, so warnings are shown with a `⚠` prefix instead of red or orange text.
+*Menu bar popover: AC charging state with power-flow diagram*
 
-| Mode | Menu Bar Shows | Label |
-|---|---|---|
-| **Battery powered** | System power | `19W` |
-| **AC charging** | Total AC input | `31W` |
-| **AC + battery supplement** | System power | `⚠ 33W` — battery still discharging despite AC |
-| **AC powered** | System power | `19W` |
-
-**Warning rules**
-
-- **`⚠` prefix** — Supplemental discharge: AC is connected but the battery is still supplying power
-- **`⚠` prefix** — Power exceeds 99 W in any non-supplemental state (label still shows `99W`)
-- **No prefix** — All other cases
-
-### Power Calculation Logic
-
-- **On AC charging**: System power = `SystemPowerIn` - charge rate (AC input minus what goes to battery)
-- **On battery**: System power = `BatteryPower` (discharge rate = system consumption)
-- **On supplemental discharge**: System power = `SystemLoad`; battery contribution = discharge rate from signed `Amperage` / `BatteryPower`
-- **Charge/discharge rate**: Derived from signed `Amperage × Voltage / 1,000,000`, cross-checked against `BatteryPower` telemetry
-- **Unplug**: `ExternalConnected=false` takes priority — stale `SystemPowerIn` and `IsCharging` are ignored
-- **Plug-in**: `ExternalConnected=true` is trusted immediately; wattage estimates until `SystemPowerIn` updates
-- **Stale flag handling**: When `IsCharging` disagrees with amperage polarity or energy balance, the physical power flow signals take priority
+*Detail window: battery health, cell data, and power parameters*
 
 ## Localization
 
-PowerTop supports English and Simplified Chinese, automatically following your system language. You can also override the language in **System Settings → General → Language & Region → Applications**.
+Follows system language; override in **System Settings → General → Language & Region → Applications**.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT. See [LICENSE](LICENSE).
