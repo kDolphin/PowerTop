@@ -8,18 +8,13 @@ private struct PopoverHeightPreferenceKey: PreferenceKey {
 }
 
 private struct PopoverHeightObserver: View {
-    let onHeightChange: (CGFloat) -> Void
-
+    // Pure reporter: only emits preference. No direct @State mutation or fit calls from
+    // inside GeometryReader (prevents "modifying state during view update"). React via
+    // .onPreferenceChange on the parent (review Bug 4).
     var body: some View {
         GeometryReader { geo in
             Color.clear
                 .preference(key: PopoverHeightPreferenceKey.self, value: geo.size.height)
-                .onAppear {
-                    onHeightChange(geo.size.height)
-                }
-                .onChange(of: geo.size.height) { _, height in
-                    onHeightChange(height)
-                }
         }
     }
 }
@@ -86,10 +81,8 @@ struct PopoverView: View {
         .frame(width: Self.popoverWidth, alignment: .topLeading)
         .fixedSize(horizontal: false, vertical: true)
         .background(
-            PopoverHeightObserver { height in
-                measuredContentHeight = height
-                fitPopoverWindow(to: height)
-            }
+            // Pure preference emitter. All measured/fit reaction happens in .onPreferenceChange above.
+            PopoverHeightObserver()
         )
     }
 
@@ -443,23 +436,42 @@ struct PopoverView: View {
         }
     }
 
-    private static func popoverWindow() -> NSWindow? {
-        NSApp.windows.first(where: { window in
-            window.isVisible && abs(window.frame.width - popoverWidth) < 8
-        })
+    // Cache the popover window reference once discovered to avoid repeated fragile searches (review Bug 3).
+    private var cachedPopoverWindow: NSWindow?
+
+    private func popoverWindow() -> NSWindow? {
+        if let cached = cachedPopoverWindow, cached.isVisible {
+            return cached
+        }
+        // More defensive search: prefer visible windows of approximately our width that are
+        // not the detail window. Avoids picking unrelated windows (review Bug 3).
+        let candidates = NSApp.windows.filter { w in
+            w.isVisible &&
+            abs(w.frame.width - Self.popoverWidth) < 12 &&
+            w.frame.height > 60 && w.frame.height < 800 &&
+            !w.title.lowercased().contains("detail")
+        }
+        let found = candidates.first
+        if let f = found {
+            cachedPopoverWindow = f
+        }
+        return found
     }
 
     private func fitPopoverWindow(to contentHeight: CGFloat) {
         DispatchQueue.main.async {
             guard contentHeight > 0 else { return }
-            guard let window = Self.popoverWindow() else { return }
+            guard let window = self.popoverWindow() else { return }
 
             let sizeChanged = abs(window.frame.height - contentHeight) > 1
                 || abs(window.frame.width - Self.popoverWidth) > 1
             guard sizeChanged else { return }
 
             var frame = window.frame
-            frame.origin.x += (frame.size.width - Self.popoverWidth) / 2
+            // Only shift origin when width actually changed; unconditional shift could push popover off menu item.
+            if abs(frame.size.width - Self.popoverWidth) > 1 {
+                frame.origin.x += (frame.size.width - Self.popoverWidth) / 2
+            }
             frame.origin.y += frame.size.height - contentHeight
             frame.size.width = Self.popoverWidth
             frame.size.height = contentHeight
