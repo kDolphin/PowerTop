@@ -5,7 +5,7 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 > **⚠️ MacBook only** — PowerTop requires a built-in battery. Mac mini, Mac Studio, and Mac Pro are not supported.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.7-blue" />
+  <img src="https://img.shields.io/badge/version-1.1.8-blue" />
   <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue" />
   <img src="https://img.shields.io/badge/architecture-Apple%20Silicon-green" />
   <img src="https://img.shields.io/badge/license-MIT-orange" />
@@ -24,6 +24,13 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 - **Bilingual Support** — English & Chinese (Simplified), follows system language
 - **Launch at Login** — Option to start automatically on login
 - **Native macOS Experience** — Built with SwiftUI, menu bar app with no dock icon
+
+## What's New in v1.1.8
+
+- **Fixed popover right-side blank** — Content now properly fills the full 280px width; no more unused space on the right in narrow states (e.g. battery mode)
+- **Improved dynamic popover sizing** — More reliable intrinsic height measurement using ZStack + PreferenceKey, proper horizontal filling, eliminated top/bottom/right blank space after AC plug/unplug state changes
+- **State machine correctness fixes** — Fixed race conditions in event-driven AC phase handling (unplug now reliably stays on battery, better tracking of ExternalConnected)
+- Various robustness improvements and code cleanup from code review (construction centralization, window fitting, etc.)
 
 ## What's New in v1.1.7
 
@@ -167,6 +174,13 @@ MIT License. See [LICENSE](LICENSE) for details.
 - **双语支持** — 中文和英文，跟随系统语言
 - **开机启动** — 可选登录时自动启动
 - **原生 macOS 体验** — SwiftUI 构建，菜单栏应用，无 Dock 图标
+
+### v1.1.8 更新内容
+
+- **修复 Popover 右边空白** — 内容现在正确撑满 280px 宽度，窄内容状态（如电池模式）不再有右边多余空白
+- **改进 Popover 动态尺寸** — 使用 ZStack + PreferenceKey 获得更可靠的固有高度测量，宽度正确填充，插拔电源切换状态后不再有上下/右边空白
+- **状态机正确性修复** — 修复事件驱动 AC 相位处理中的竞态问题（拔掉现在可靠停留在电池模式，更好跟踪 ExternalConnected）
+- 代码审查驱动的健壮性改进与清理（构造集中化、窗口适配等）
 
 ### v1.1.7 更新内容
 
