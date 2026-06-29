@@ -314,7 +314,7 @@ struct PopoverView: View {
             .buttonStyle(.plain)
             .focusEffectDisabled()
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Toggle(String(localized: "Launch at Login"), isOn: Binding(
                     get: { monitor.launchAtLogin },
                     set: { monitor.launchAtLogin = $0 }
@@ -329,6 +329,10 @@ struct PopoverView: View {
                 .toggleStyle(.checkbox)
                 .font(.system(size: 11))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
 
             HStack {
                 Spacer()
