@@ -1,5 +1,7 @@
 # PowerTop
 
+**English** | **[简体中文](README.zh-CN.md)**
+
 A native macOS menu bar app for real-time power monitoring on Apple Silicon MacBooks.
 
 > **⚠️ MacBook only** — PowerTop requires a built-in battery. Mac mini, Mac Studio, and Mac Pro are not supported.
@@ -25,7 +27,9 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 - **Launch at Login** — Option to start automatically on login
 - **Native macOS Experience** — Built with SwiftUI, menu bar app with no dock icon
 
-## What's New in v1.2.0
+## What's New
+
+### v1.2.0
 
 - **Redesigned detail window** — Merged power and charging into a contextual "Current Power" section; labels aligned with the popover; user-friendly copy instead of internal telemetry jargon
 - **Flat detail layout** — All sections expanded by default (no disclosure groups); removed the blue focus ring on first open
@@ -33,40 +37,21 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 - **0 W fix** — Battery-powered idle state now falls back to `SystemLoad` when battery telemetry signs are ambiguous
 - **Cell balance summary** — Detail view shows per-cell voltage spread with a plain-language status
 
-## What's New in v1.1.9
+### v1.1.9
 
-- **Plug-in stale telemetry fix** — "AC Connecting" no longer skipped when stale `SystemPowerIn` lingers from a previous session; requires fresh charging or energy-balance signals before converging
-- **Sleep/wake reliability** — Replaced selector-based workspace observers with block observers so the poll timer stops during sleep and resumes on wake
-- **Timer & IOPS robustness** — Timer invalidates before reschedule and runs in `.common` run-loop mode; IOPS plug/unplug refreshes are coalesced instead of stacking eight delayed reads
-- **Lifecycle cleanup** — `stop()` runs on app termination, releasing IOPS sources and workspace observers
-- **Unsupported hardware UX** — Banner in popover and warning icon in menu bar when no built-in battery is detected (e.g. Mac mini)
-- **Launch at Login feedback** — Shows an inline error when registration fails instead of silently snapping the toggle back
-- **UI polish** — Removed empty Settings window, hide empty detail sections, fixed popover width centering, centralized temperature unit conversion
+- **Plug-in stale telemetry fix** — "AC Connecting" no longer skipped when stale `SystemPowerIn` lingers from a previous session
+- **Sleep/wake reliability** — Block-based workspace observers; timer stops during sleep and resumes on wake
+- **Timer & IOPS robustness** — Timer invalidates before reschedule; coalesced plug/unplug refreshes
+- **Unsupported hardware UX** — Banner and menu bar warning when no built-in battery is detected
+- **Launch at Login feedback** — Inline error when registration fails
 
-## What's New in v1.1.8
+### v1.1.8
 
-- **Fixed popover right-side blank** — Content now properly fills the full 280px width; no more unused space on the right in narrow states (e.g. battery mode)
-- **Improved dynamic popover sizing** — More reliable intrinsic height measurement using ZStack + PreferenceKey, proper horizontal filling, eliminated top/bottom/right blank space after AC plug/unplug state changes
-- **State machine correctness fixes** — Fixed race conditions in event-driven AC phase handling (unplug now reliably stays on battery, better tracking of ExternalConnected)
-- Various robustness improvements and code cleanup from code review (construction centralization, window fitting, etc.)
+- **Fixed popover right-side blank** — Content fills the full 280px width
+- **Improved dynamic popover sizing** — Reliable intrinsic height measurement via ZStack + PreferenceKey
+- **State machine correctness fixes** — Unplug reliably stays on battery; better `ExternalConnected` tracking
 
-## What's New in v1.1.7
-
-- **Event-driven power connection state** — IOPS plug/unplug events drive a three-phase state machine: battery, AC connecting, and stable AC
-- **Instant unplug detection** — When `ExternalConnected` becomes false, the UI switches to battery discharge immediately instead of waiting for stale `SystemPowerIn` to drop
-- **AC connecting state** — After plugging in, shows "AC Connecting" until charger telemetry is available
-- **Smarter stale-data handling** — Unplug trusts the disconnect signal; plug-in waits for telemetry; charging detection cross-checks energy balance and `NotChargingReason`
-- **Dynamic popover sizing** — Popover window expands and shrinks with content when power state changes, without clipping or excess blank space
-
-## What's New in v1.1.6
-
-- **Menu bar warning symbol** — Supplemental discharge and power above 99 W now show a `⚠` prefix (e.g. `⚠ 33W`) because macOS renders menu bar text in a single system color and ignores custom red/orange styling
-
-## What's New in v1.1.5
-
-- **Menu bar power display** — Toggle "Show Power in Menu Bar" in the popover footer to show live wattage next to the icon (off by default)
-- **Scenario-aware wattage** — Menu bar value adapts to the current power state instead of always showing system load
-- **Grouped settings panel** — Launch at Login and menu bar options are grouped in a footer card, aligned with the Details button style
+[Older releases →](https://github.com/kDolphin/PowerTop/releases)
 
 ## Screenshots
 
@@ -83,7 +68,7 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 
 ### Download
 
-Download the latest release from the [Releases page](https://github.com/kdolphin/PowerTop/releases).
+Download the latest release from the [Releases page](https://github.com/kDolphin/PowerTop/releases).
 
 1. Unzip `PowerTop.zip`
 2. Move `PowerTop.app` to `/Applications`
@@ -149,9 +134,9 @@ When enabled, the menu bar shows a rounded wattage label (e.g. `19W`). Values ab
 
 **Warning rules**
 
-- **`⚠` prefix** — Supplemental discharge: AC is connected but the battery is still supplying power. This reminds you the battery is draining even though the charger is plugged in.
-- **`⚠` prefix** — Power exceeds 99 W in any non-supplemental state (label still shows `99W`).
-- **No prefix** — All other cases.
+- **`⚠` prefix** — Supplemental discharge: AC is connected but the battery is still supplying power
+- **`⚠` prefix** — Power exceeds 99 W in any non-supplemental state (label still shows `99W`)
+- **No prefix** — All other cases
 
 ### Power Calculation Logic
 
@@ -170,138 +155,3 @@ PowerTop supports English and Simplified Chinese, automatically following your s
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
-
----
-
-## 中文说明
-
-一个原生 macOS 菜单栏应用，用于 Apple Silicon MacBook 的实时功耗监控。
-
-> **⚠️ 仅支持 MacBook** — PowerTop 需要内置电池。Mac mini、Mac Studio、Mac Pro 不受支持。
-
-### 功能特性
-
-- **实时功率流向图** — 可视化 AC 适配器、电池和系统之间的功率流向
-- **补充放电检测** — 适配器功率不足时，显示 AC 与电池并联向系统供电
-- **菜单栏功率显示** — 可选择在菜单栏显示实时功率，按场景切换数值与警告标识
-- **插拔电源即时响应** — 事件驱动状态机在拔掉或插入充电器时立即切换状态
-- **瞬时功率指标** — 系统功耗、AC 适配器输出、电池充放电功率
-- **电池健康** — 健康度百分比、循环次数、设计容量、温度
-- **详细参数** — 电芯数据、充电详情、生命周期统计
-- **电源变更通知** — 插拔电源即时刷新界面
-- **双语支持** — 中文和英文，跟随系统语言
-- **开机启动** — 可选登录时自动启动
-- **原生 macOS 体验** — SwiftUI 构建，菜单栏应用，无 Dock 图标
-
-### v1.2.0 更新内容
-
-- **详细参数窗口重设计** — 合并「当前电源」与充电状态，标签与 Popover 统一，去掉内部遥测术语
-- **平铺布局** — 所有分区默认展开（无折叠）；修复首次打开时的蓝色焦点框
-- **菜单栏即时更新** — 启动即开始监控；休眠唤醒后无需点击即可刷新读数
-- **0W 修复** — 电池供电 idle 状态下，电池遥测符号不明确时回退使用 `SystemLoad`
-- **电芯均衡摘要** — 详情页显示电芯压差与可读状态
-
-### v1.1.9 更新内容
-
-- **插上电源滞后数据修复** — 上一段 AC 会话残留的 `SystemPowerIn` 不再导致跳过「AC 连接中」；需新鲜充电或能量平衡信号后才收敛
-- **休眠/唤醒可靠性** — 将 selector 式 Workspace 观察者改为 block 观察者，休眠时停止轮询、唤醒后恢复
-- **定时器与 IOPS 健壮性** — 定时器重建前先 invalidate 并加入 `.common` run-loop mode；IOPS 插拔刷新合并调度，不再堆积 8 次延迟读取
-- **生命周期清理** — 应用退出时调用 `stop()`，释放 IOPS 源与 Workspace 观察者
-- **不支持设备提示** — 未检测到内置电池时（如 Mac mini），Popover 显示横幅、菜单栏显示警告图标
-- **登录时启动反馈** — 注册失败时在 toggle 下方显示错误，不再静默弹回
-- **界面打磨** — 移除空白 Settings 窗口、隐藏无数据的详情 section、修复 Popover 宽度居中、集中管理温度单位换算
-
-### v1.1.8 更新内容
-
-- **修复 Popover 右边空白** — 内容现在正确撑满 280px 宽度，窄内容状态（如电池模式）不再有右边多余空白
-- **改进 Popover 动态尺寸** — 使用 ZStack + PreferenceKey 获得更可靠的固有高度测量，宽度正确填充，插拔电源切换状态后不再有上下/右边空白
-- **状态机正确性修复** — 修复事件驱动 AC 相位处理中的竞态问题（拔掉现在可靠停留在电池模式，更好跟踪 ExternalConnected）
-- 代码审查驱动的健壮性改进与清理（构造集中化、窗口适配等）
-
-### v1.1.7 更新内容
-
-- **事件驱动连接状态机** — IOPS 插拔事件驱动三阶段状态：电池供电、AC 连接中、AC 稳定
-- **拔掉即时切换** — `ExternalConnected=false` 后立即显示电池放电，不再等待滞后的 `SystemPowerIn` 归零
-- **AC 连接中状态** — 插上充电器后显示「AC 连接中」，待遥测数据就绪再进入正常状态
-- **更智能的滞后数据处理** — 拔掉信任断开信号；插上等待遥测；充电判定结合能量平衡与 `NotChargingReason`
-- **Popover 动态尺寸** — 窗口随内容伸缩，切换电源状态时不再裁切或留白
-
-### v1.1.6 更新内容
-
-- **菜单栏警告符号** — 补充放电及超过 99 W 时显示 `⚠` 前缀（如 `⚠ 33W`）。macOS 菜单栏文字为系统单色渲染，自定义红/橙色无效
-
-### v1.1.5 更新内容
-
-- **菜单栏功率显示** — Popover 底部可开启「菜单栏显示功率」，在图标旁显示实时瓦数（默认关闭）
-- **按场景显示数值** — 菜单栏功率随当前电源状态切换，不再固定显示系统功耗
-- **设置项分组** — 「登录时启动」与菜单栏开关归入底部卡片，与「详细参数」按钮风格一致
-
-### 安装
-
-从 [Releases 页面](https://github.com/kdolphin/PowerTop/releases) 下载最新版本。
-
-1. 解压 `PowerTop.zip`
-2. 将 `PowerTop.app` 移动到 `/Applications`
-3. 首次启动时，右键点击应用选择**打开**（未签名应用需要此操作）
-
-### 从源码构建
-
-```bash
-git clone https://github.com/kdolphin/PowerTop.git
-cd PowerTop
-bash build.sh
-open build/PowerTop.app
-```
-
-`build.sh` 需要 Xcode（推荐）或版本匹配的 Swift SDK/工具链。构建成功后会生成：
-
-- `build/PowerTop.app` — 可直接运行的应用
-- `build/PowerTop.zip` — 可分发用的压缩包
-
-### 连接状态机
-
-PowerTop 在 IOKit 遥测之上叠加事件驱动状态机：
-
-| 阶段 | 触发条件 | 界面 |
-|---|---|---|
-| **电池供电** | 检测到拔掉（`ExternalConnected=false`） | 立即显示电池放电，忽略滞后的 AC 数据 |
-| **AC 连接中** | 检测到插入（`ExternalConnected=true`） | 显示「AC 连接中」，等待 `SystemPowerIn` 或充电信号 |
-| **AC 稳定** | 遥测收敛或 3 秒超时 | 进入充电 / 供电 / 补充放电 |
-
-### 功率状态
-
-PowerTop 识别四种工作模式：
-
-| 模式 | 条件 | 功率流向 |
-|---|---|---|
-| **电池供电** | 未插电源 | 电池 → 系统 |
-| **AC 供电** | 插电源，适配器满足负载，未充电 | AC → 系统 |
-| **AC 充电** | 插电源，AC 有剩余功率 | AC → 系统 + 电池 |
-| **AC + 电池补充** | 插电源，适配器无法满足峰值负载 | AC → 系统，电池 → 系统 |
-
-### 菜单栏功率显示
-
-开启后，菜单栏显示四舍五入的功率文字（如 `19W`）。实际功率超过 99 W 时，显示封顶为 `99W`。macOS 菜单栏为系统单色文字，因此用 `⚠` 前缀代替红/橙色。
-
-| 模式 | 菜单栏显示 | 文字样式 |
-|---|---|---|
-| **电池供电** | 系统功耗 | `19W` |
-| **AC 充电** | AC 总输入 | `31W` |
-| **AC + 电池补充** | 系统功耗 | `⚠ 33W` — 插着 AC 电池仍在放电 |
-| **AC 供电** | 系统功耗 | `19W` |
-
-**警告规则**
-
-- **`⚠` 前缀** — 补充放电：已连接 AC，但电池仍在向系统供电。提醒用户此时电池仍在消耗，不要以为插着电就安全。
-- **`⚠` 前缀** — 非补充放电场景下，功率超过 99 W（文字仍显示 `99W`）。
-- **无前缀** — 其余情况。
-
-### 功率计算逻辑
-
-- **AC 充电时**：系统功耗 = `SystemPowerIn` - 充电功率（AC 输入减去向电池供电的部分）
-- **电池供电时**：系统功耗 = `BatteryPower`（放电功率 = 系统消耗）
-- **补充放电时**：系统功耗 = `SystemLoad`；电池贡献功率来自带符号的 `Amperage` / `BatteryPower`
-- **充放电功率**：由带符号的 `Amperage × Voltage / 1,000,000` 计算，并与 `BatteryPower` 遥测交叉验证
-- **拔掉时**：`ExternalConnected=false` 优先，忽略滞后的 `SystemPowerIn` 和 `IsCharging`
-- **插上时**：立即信任 `ExternalConnected=true`，在 `SystemPowerIn` 更新前可估算功率
-- **滞后标志处理**：当 `IsCharging` 与电流极性或能量平衡矛盾时，以实际功率流向信号为准
