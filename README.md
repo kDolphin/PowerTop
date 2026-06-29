@@ -72,9 +72,15 @@ open build/PowerTop.app
 
 ## Screenshots
 
-*Popover with power flow diagram and live metrics*
+**Popover**
 
-*Detail window showing battery health and more information*
+![Popover - AC Charging](screenshots/popover-charging.jpg)
+
+![Popover - AC + Battery Supplement](screenshots/popover-supplement.jpg)
+
+**Detail window**
+
+![Detail window](screenshots/detail-window.jpg)
 
 ## What's New
 
