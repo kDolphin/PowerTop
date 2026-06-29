@@ -183,9 +183,16 @@ struct PowerData {
         isSupplementalDischarge
     }
 
-    /// Compact menu bar label text, e.g. "19W".
+    /// Whether the menu bar should prefix a warning symbol (colors are ignored in the menu bar).
+    var menuBarPowerShowsWarning: Bool {
+        menuBarPowerShowsBatteryWarning || menuBarPowerExceedsCap
+    }
+
+    /// Compact menu bar label text, e.g. "19W" or "⚠ 33W".
     var menuBarPowerText: String {
-        "\(menuBarPowerRoundedW)W"
+        let power = "\(menuBarPowerRoundedW)W"
+        if menuBarPowerShowsWarning { return "⚠ \(power)" }
+        return power
     }
 
     var notChargingReasonDescription: String? {
