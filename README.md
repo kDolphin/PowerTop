@@ -5,7 +5,7 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 > **⚠️ MacBook only** — PowerTop requires a built-in battery. Mac mini, Mac Studio, and Mac Pro are not supported.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.8-blue" />
+  <img src="https://img.shields.io/badge/version-1.1.9-blue" />
   <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue" />
   <img src="https://img.shields.io/badge/architecture-Apple%20Silicon-green" />
   <img src="https://img.shields.io/badge/license-MIT-orange" />
@@ -24,6 +24,16 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 - **Bilingual Support** — English & Chinese (Simplified), follows system language
 - **Launch at Login** — Option to start automatically on login
 - **Native macOS Experience** — Built with SwiftUI, menu bar app with no dock icon
+
+## What's New in v1.1.9
+
+- **Plug-in stale telemetry fix** — "AC Connecting" no longer skipped when stale `SystemPowerIn` lingers from a previous session; requires fresh charging or energy-balance signals before converging
+- **Sleep/wake reliability** — Replaced selector-based workspace observers with block observers so the poll timer stops during sleep and resumes on wake
+- **Timer & IOPS robustness** — Timer invalidates before reschedule and runs in `.common` run-loop mode; IOPS plug/unplug refreshes are coalesced instead of stacking eight delayed reads
+- **Lifecycle cleanup** — `stop()` runs on app termination, releasing IOPS sources and workspace observers
+- **Unsupported hardware UX** — Banner in popover and warning icon in menu bar when no built-in battery is detected (e.g. Mac mini)
+- **Launch at Login feedback** — Shows an inline error when registration fails instead of silently snapping the toggle back
+- **UI polish** — Removed empty Settings window, hide empty detail sections, fixed popover width centering, centralized temperature unit conversion
 
 ## What's New in v1.1.8
 
@@ -174,6 +184,16 @@ MIT License. See [LICENSE](LICENSE) for details.
 - **双语支持** — 中文和英文，跟随系统语言
 - **开机启动** — 可选登录时自动启动
 - **原生 macOS 体验** — SwiftUI 构建，菜单栏应用，无 Dock 图标
+
+### v1.1.9 更新内容
+
+- **插上电源滞后数据修复** — 上一段 AC 会话残留的 `SystemPowerIn` 不再导致跳过「AC 连接中」；需新鲜充电或能量平衡信号后才收敛
+- **休眠/唤醒可靠性** — 将 selector 式 Workspace 观察者改为 block 观察者，休眠时停止轮询、唤醒后恢复
+- **定时器与 IOPS 健壮性** — 定时器重建前先 invalidate 并加入 `.common` run-loop mode；IOPS 插拔刷新合并调度，不再堆积 8 次延迟读取
+- **生命周期清理** — 应用退出时调用 `stop()`，释放 IOPS 源与 Workspace 观察者
+- **不支持设备提示** — 未检测到内置电池时（如 Mac mini），Popover 显示横幅、菜单栏显示警告图标
+- **登录时启动反馈** — 注册失败时在 toggle 下方显示错误，不再静默弹回
+- **界面打磨** — 移除空白 Settings 窗口、隐藏无数据的详情 section、修复 Popover 宽度居中、集中管理温度单位换算
 
 ### v1.1.8 更新内容
 
