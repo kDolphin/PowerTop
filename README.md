@@ -29,7 +29,6 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 - **Dual-source flow diagram** — Supplemental discharge now shows AC and battery as parallel sources feeding the system
 - **New power source label** — Displays "AC + Battery Supplement" when the battery fills the gap left by an underpowered adapter
 - **Version label** — Shows `v1.1.0` in the popover footer
-- **Build output** — `build.sh` now produces `build/PowerTop.zip` alongside the app bundle
 
 ## Screenshots
 
@@ -130,7 +129,6 @@ MIT License. See [LICENSE](LICENSE) for details.
 - **双源流向图** — 补充放电场景下，AC 与电池作为并联电源共同向系统供电
 - **新增电源状态文案** — 适配器功率不足时显示「AC + 电池补充供电」
 - **版本号显示** — Popover 底部显示 `v1.1.0`
-- **构建产物** — `build.sh` 同时生成 `build/PowerTop.zip` 压缩包
 
 ### 安装
 
