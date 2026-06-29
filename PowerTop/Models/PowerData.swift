@@ -66,6 +66,80 @@ struct PowerData {
     let permanentFailureStatus: Int?
     let batteryCellDisconnectCount: Int?
 
+    // MARK: - Private full memberwise init (centralizes construction and field list)
+    private init(
+        systemPowerW: Double, batteryPowerW: Double, acInputW: Double,
+        acAdapterWattage: Int, batteryPercent: Int,
+        isOnAC: Bool, isCharging: Bool, fullyCharged: Bool,
+        wallPowerW: Double?, adapterEfficiencyLossW: Double?,
+        systemVoltageMV: Int?, systemCurrentMA: Int?,
+        batteryVoltageMV: Int?, batteryAmperageMA: Int?,
+        batteryTemperatureC: Double?, cycleCount: Int?,
+        adapterDescription: String?, dataSource: PowerDataSource, timestamp: Date,
+        connectionPhase: PowerConnectionPhase,
+        batteryHealthPercent: Int?, designCapacityMAH: Int?, rawMaxCapacityMAH: Int?,
+        nominalChargeCapacityMAH: Int?, designCycleCount: Int?,
+        chargingVoltageMV: Int?, chargingCurrentMA: Int?, notChargingReason: Int?, vacVoltageLimit: Int?,
+        cellVoltagesMV: [Int]?, stateOfCharge: Int?, qmaxMAH: [Int]?,
+        dailyMinSoc: Int?, dailyMaxSoc: Int?,
+        totalOperatingTimeMin: Int?,
+        lifetimeMaxTempC: Int?, lifetimeMinTempC: Int?, lifetimeAvgTempC: Int?,
+        lifetimeMaxPackVoltageMV: Int?, lifetimeMinPackVoltageMV: Int?,
+        lifetimeMaxChargeCurrentMA: Int?, lifetimeMaxDischargeCurrentMA: Int?,
+        batterySerial: String?, deviceName: String?,
+        instantAmperageMA: Int?, atCriticalLevel: Bool?,
+        permanentFailureStatus: Int?, batteryCellDisconnectCount: Int?
+    ) {
+        self.systemPowerW = systemPowerW
+        self.batteryPowerW = batteryPowerW
+        self.acInputW = acInputW
+        self.acAdapterWattage = acAdapterWattage
+        self.batteryPercent = batteryPercent
+        self.isOnAC = isOnAC
+        self.isCharging = isCharging
+        self.fullyCharged = fullyCharged
+        self.wallPowerW = wallPowerW
+        self.adapterEfficiencyLossW = adapterEfficiencyLossW
+        self.systemVoltageMV = systemVoltageMV
+        self.systemCurrentMA = systemCurrentMA
+        self.batteryVoltageMV = batteryVoltageMV
+        self.batteryAmperageMA = batteryAmperageMA
+        self.batteryTemperatureC = batteryTemperatureC
+        self.cycleCount = cycleCount
+        self.adapterDescription = adapterDescription
+        self.dataSource = dataSource
+        self.timestamp = timestamp
+        self.connectionPhase = connectionPhase
+        self.batteryHealthPercent = batteryHealthPercent
+        self.designCapacityMAH = designCapacityMAH
+        self.rawMaxCapacityMAH = rawMaxCapacityMAH
+        self.nominalChargeCapacityMAH = nominalChargeCapacityMAH
+        self.designCycleCount = designCycleCount
+        self.chargingVoltageMV = chargingVoltageMV
+        self.chargingCurrentMA = chargingCurrentMA
+        self.notChargingReason = notChargingReason
+        self.vacVoltageLimit = vacVoltageLimit
+        self.cellVoltagesMV = cellVoltagesMV
+        self.stateOfCharge = stateOfCharge
+        self.qmaxMAH = qmaxMAH
+        self.dailyMinSoc = dailyMinSoc
+        self.dailyMaxSoc = dailyMaxSoc
+        self.totalOperatingTimeMin = totalOperatingTimeMin
+        self.lifetimeMaxTempC = lifetimeMaxTempC
+        self.lifetimeMinTempC = lifetimeMinTempC
+        self.lifetimeAvgTempC = lifetimeAvgTempC
+        self.lifetimeMaxPackVoltageMV = lifetimeMaxPackVoltageMV
+        self.lifetimeMinPackVoltageMV = lifetimeMinPackVoltageMV
+        self.lifetimeMaxChargeCurrentMA = lifetimeMaxChargeCurrentMA
+        self.lifetimeMaxDischargeCurrentMA = lifetimeMaxDischargeCurrentMA
+        self.batterySerial = batterySerial
+        self.deviceName = deviceName
+        self.instantAmperageMA = instantAmperageMA
+        self.atCriticalLevel = atCriticalLevel
+        self.permanentFailureStatus = permanentFailureStatus
+        self.batteryCellDisconnectCount = batteryCellDisconnectCount
+    }
+
     // MARK: - Computed properties
 
     var isConnectingAC: Bool {
@@ -247,9 +321,10 @@ struct PowerData {
         batterySerial: nil, deviceName: nil,
         instantAmperageMA: nil, atCriticalLevel: nil,
         permanentFailureStatus: nil, batteryCellDisconnectCount: nil
-    )
+    ) // delegates to private init below (centralized)
 
     func withConnectionPhase(_ phase: PowerConnectionPhase) -> PowerData {
+        // Delegates to the single private full init (reduces risk of assignment drift on future fields, review Suggestion 5)
         PowerData(
             systemPowerW: systemPowerW, batteryPowerW: batteryPowerW, acInputW: acInputW,
             acAdapterWattage: acAdapterWattage, batteryPercent: batteryPercent,
