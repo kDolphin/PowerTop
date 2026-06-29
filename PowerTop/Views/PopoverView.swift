@@ -40,24 +40,22 @@ struct PopoverView: View {
     }
 
     var body: some View {
-        // Single tight content container. We rely on .fixedSize(vertical: true) + preference measurement
-        // so the window can be set to the exact ideal height of the content. This avoids the previous
-        // wrapper + Spacer which could cause extra allocated space to appear as blanks above/below.
+        // Measure ideal size on the raw content first, then fixedSize (so it hugs its own ideal height
+        // even if the window proposes more space), then apply the width frame. This gives accurate
+        // height for shrinking/expanding without leaving blank areas on state changes.
         contentSections
-            .frame(width: Self.popoverWidth, alignment: .topLeading)
-            .fixedSize(horizontal: false, vertical: true)
             .background(PopoverHeightObserver())
+            .fixedSize(horizontal: true, vertical: true)
+            .frame(width: Self.popoverWidth, alignment: .topLeading)
             .onPreferenceChange(PopoverHeightPreferenceKey.self) { height in
                 if height > 1 {
                     measuredContentHeight = height
-                    // Dispatch to allow the current update/layout pass to settle before resizing the NSWindow.
                     DispatchQueue.main.async {
                         fitPopoverWindow(to: height)
                     }
                 }
             }
             .onChange(of: layoutSignature) { _, _ in
-                // Major visual change (different diagram or phase). Re-fit shortly after SwiftUI updates.
                 scheduleWindowFit(after: 0.04)
             }
             .onAppear {
@@ -74,19 +72,19 @@ struct PopoverView: View {
             headerSection
             Divider().padding(.horizontal, 12)
             powerFlowDiagram
-                .padding(.vertical, 8)
+                .padding(.vertical, 6)
             Divider().padding(.horizontal, 12)
             metricsSection
                 .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+                .padding(.vertical, 6)
             Divider().padding(.horizontal, 12)
             batterySection
                 .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+                .padding(.vertical, 6)
             Divider().padding(.horizontal, 12)
             footerSection
                 .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+                .padding(.vertical, 6)
         }
     }
 
@@ -116,8 +114,8 @@ struct PopoverView: View {
             Spacer()
         }
         .padding(.horizontal, 14)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
     }
 
     // MARK: - Power Flow Diagram
@@ -257,7 +255,7 @@ struct PopoverView: View {
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(color)
         }
-        .padding(.horizontal, 10).padding(.vertical, 5)
+        .padding(.horizontal, 8).padding(.vertical, 4)
         .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
     }
 
@@ -272,7 +270,7 @@ struct PopoverView: View {
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(color)
         }
-        .padding(.horizontal, 10).padding(.vertical, 5)
+        .padding(.horizontal, 8).padding(.vertical, 4)
         .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
     }
 
@@ -469,19 +467,29 @@ struct PopoverView: View {
 
             let heightDiff = abs(window.frame.height - contentHeight)
             let widthDiff = abs(window.frame.width - Self.popoverWidth)
-            if !force && heightDiff < 1 && widthDiff < 1 {
+            if !force && heightDiff < 0.5 && widthDiff < 0.5 {
                 return
             }
 
+            // Prefer setContentSize + manual top-edge compensation. This tends to produce
+            // tighter results for menu bar popovers than full setFrame alone.
+            let oldHeight = window.frame.height
+            let delta = oldHeight - contentHeight
+
             var frame = window.frame
-            // Only shift origin when width actually changed; unconditional shift could push popover off menu item.
-            if widthDiff > 1 {
-                frame.origin.x += (frame.size.width - Self.popoverWidth) / 2
-            }
-            frame.origin.y += frame.size.height - contentHeight
             frame.size.width = Self.popoverWidth
             frame.size.height = contentHeight
+            if widthDiff > 0.5 {
+                frame.origin.x += (frame.size.width - Self.popoverWidth) / 2   // only when needed
+            }
+            frame.origin.y += delta
+
             window.setFrame(frame, display: true, animate: false)
+
+            // Force the hosting view to re-layout after we changed the window size from outside.
+            DispatchQueue.main.async {
+                window.contentView?.layoutSubtreeIfNeeded()
+            }
         }
     }
 
