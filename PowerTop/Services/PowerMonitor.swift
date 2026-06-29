@@ -313,6 +313,10 @@ final class PowerMonitor {
         }
 
         // IOKit sign convention: Amperage > 0 = discharge, < 0 = charge.
+    //
+    // Note (review Nit 9): raw `isOnAC` (from ExternalConnected snapshot) is the hardware truth
+    // used inside telemetry/legacy calculations. The published PowerData uses `connectionPhase`
+    // + effective* computed properties as the UI-facing truth. The two layers are intentionally distinct.
         let amperagePowerW: Double? = {
             guard let a = amperage, let v = voltage, a != 0, v > 0 else { return nil }
             return Double(a) * Double(v) / 1_000_000.0
