@@ -5,7 +5,7 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 > **⚠️ MacBook only** — PowerTop requires a built-in battery. Mac mini, Mac Studio, and Mac Pro are not supported.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.9-blue" />
+  <img src="https://img.shields.io/badge/version-1.2.0-blue" />
   <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue" />
   <img src="https://img.shields.io/badge/architecture-Apple%20Silicon-green" />
   <img src="https://img.shields.io/badge/license-MIT-orange" />
@@ -24,6 +24,14 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 - **Bilingual Support** — English & Chinese (Simplified), follows system language
 - **Launch at Login** — Option to start automatically on login
 - **Native macOS Experience** — Built with SwiftUI, menu bar app with no dock icon
+
+## What's New in v1.2.0
+
+- **Redesigned detail window** — Merged power and charging into a contextual "Current Power" section; labels aligned with the popover; user-friendly copy instead of internal telemetry jargon
+- **Flat detail layout** — All sections expanded by default (no disclosure groups); removed the blue focus ring on first open
+- **Instant menu bar updates** — Power monitoring starts at launch; menu bar label refreshes immediately on wake without needing a click
+- **0 W fix** — Battery-powered idle state now falls back to `SystemLoad` when battery telemetry signs are ambiguous
+- **Cell balance summary** — Detail view shows per-cell voltage spread with a plain-language status
 
 ## What's New in v1.1.9
 
@@ -184,6 +192,14 @@ MIT License. See [LICENSE](LICENSE) for details.
 - **双语支持** — 中文和英文，跟随系统语言
 - **开机启动** — 可选登录时自动启动
 - **原生 macOS 体验** — SwiftUI 构建，菜单栏应用，无 Dock 图标
+
+### v1.2.0 更新内容
+
+- **详细参数窗口重设计** — 合并「当前电源」与充电状态，标签与 Popover 统一，去掉内部遥测术语
+- **平铺布局** — 所有分区默认展开（无折叠）；修复首次打开时的蓝色焦点框
+- **菜单栏即时更新** — 启动即开始监控；休眠唤醒后无需点击即可刷新读数
+- **0W 修复** — 电池供电 idle 状态下，电池遥测符号不明确时回退使用 `SystemLoad`
+- **电芯均衡摘要** — 详情页显示电芯压差与可读状态
 
 ### v1.1.9 更新内容
 
