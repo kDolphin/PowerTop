@@ -5,7 +5,7 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 > **⚠️ MacBook only** — PowerTop requires a built-in battery. Mac mini, Mac Studio, and Mac Pro are not supported.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.6-blue" />
+  <img src="https://img.shields.io/badge/version-1.1.7-blue" />
   <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue" />
   <img src="https://img.shields.io/badge/architecture-Apple%20Silicon-green" />
   <img src="https://img.shields.io/badge/license-MIT-orange" />
@@ -16,6 +16,7 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 - **Real-time Power Flow Diagram** — Visualize how power flows between AC adapter, battery, and system
 - **Supplemental Discharge Detection** — When the adapter cannot meet peak load, shows AC and battery supplying the system in parallel
 - **Menu Bar Power Display** — Optional live wattage in the menu bar, with scenario-aware values and warning indicators
+- **Instant AC Plug/Unplug Response** — Event-driven state machine switches to battery or AC connecting immediately when the charger is removed or attached
 - **Instant Power Metrics** — System power consumption, AC adapter output, battery charge/discharge rate
 - **Battery Health** — Health percentage, cycle count, design capacity, temperature
 - **Detailed Parameters** — Deep dive into battery cell data, charging details, lifetime statistics
@@ -23,6 +24,14 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 - **Bilingual Support** — English & Chinese (Simplified), follows system language
 - **Launch at Login** — Option to start automatically on login
 - **Native macOS Experience** — Built with SwiftUI, menu bar app with no dock icon
+
+## What's New in v1.1.7
+
+- **Event-driven power connection state** — IOPS plug/unplug events drive a three-phase state machine: battery, AC connecting, and stable AC
+- **Instant unplug detection** — When `ExternalConnected` becomes false, the UI switches to battery discharge immediately instead of waiting for stale `SystemPowerIn` to drop
+- **AC connecting state** — After plugging in, shows "AC Connecting" until charger telemetry is available
+- **Smarter stale-data handling** — Unplug trusts the disconnect signal; plug-in waits for telemetry; charging detection cross-checks energy balance and `NotChargingReason`
+- **Dynamic popover sizing** — Popover window expands and shrinks with content when power state changes, without clipping or excess blank space
 
 ## What's New in v1.1.6
 
@@ -33,7 +42,6 @@ A native macOS menu bar app for real-time power monitoring on Apple Silicon MacB
 - **Menu bar power display** — Toggle "Show Power in Menu Bar" in the popover footer to show live wattage next to the icon (off by default)
 - **Scenario-aware wattage** — Menu bar value adapts to the current power state instead of always showing system load
 - **Grouped settings panel** — Launch at Login and menu bar options are grouped in a footer card, aligned with the Details button style
-- **Stable popover layout** — Popover height no longer shifts when AC power state changes
 
 ## Screenshots
 
@@ -80,6 +88,17 @@ PowerTop reads power data from macOS IOKit's `AppleSmartBattery` service, specif
 | `SystemPowerIn` | DC power from AC adapter |
 | `BatteryPower` | Battery charge/discharge power |
 | `Amperage` × `Voltage` | Signed battery power flow (negative = charging, positive = discharging) |
+| `ExternalConnected` | Whether the AC adapter is physically connected |
+
+### Connection State Machine
+
+PowerTop layers an event-driven state machine on top of IOKit telemetry:
+
+| Phase | Trigger | UI |
+|---|---|---|
+| **On battery** | Unplug detected (`ExternalConnected=false`) | Battery discharge — immediate, ignores stale AC telemetry |
+| **AC connecting** | Plug detected (`ExternalConnected=true`) | "AC Connecting" until `SystemPowerIn` or charging signals arrive |
+| **On AC** | Telemetry converged or 3 s timeout | Normal AC charging / powered / supplemental discharge |
 
 ### Power States
 
@@ -115,7 +134,9 @@ When enabled, the menu bar shows a rounded wattage label (e.g. `19W`). Values ab
 - **On battery**: System power = `BatteryPower` (discharge rate = system consumption)
 - **On supplemental discharge**: System power = `SystemLoad`; battery contribution = discharge rate from signed `Amperage` / `BatteryPower`
 - **Charge/discharge rate**: Derived from signed `Amperage × Voltage / 1,000,000`, cross-checked against `BatteryPower` telemetry
-- **Stale flag handling**: When `IsCharging` disagrees with amperage polarity, the physical power flow signals take priority
+- **Unplug**: `ExternalConnected=false` takes priority — stale `SystemPowerIn` and `IsCharging` are ignored
+- **Plug-in**: `ExternalConnected=true` is trusted immediately; wattage estimates until `SystemPowerIn` updates
+- **Stale flag handling**: When `IsCharging` disagrees with amperage polarity or energy balance, the physical power flow signals take priority
 
 ## Localization
 
@@ -138,6 +159,7 @@ MIT License. See [LICENSE](LICENSE) for details.
 - **实时功率流向图** — 可视化 AC 适配器、电池和系统之间的功率流向
 - **补充放电检测** — 适配器功率不足时，显示 AC 与电池并联向系统供电
 - **菜单栏功率显示** — 可选择在菜单栏显示实时功率，按场景切换数值与警告标识
+- **插拔电源即时响应** — 事件驱动状态机在拔掉或插入充电器时立即切换状态
 - **瞬时功率指标** — 系统功耗、AC 适配器输出、电池充放电功率
 - **电池健康** — 健康度百分比、循环次数、设计容量、温度
 - **详细参数** — 电芯数据、充电详情、生命周期统计
@@ -145,6 +167,14 @@ MIT License. See [LICENSE](LICENSE) for details.
 - **双语支持** — 中文和英文，跟随系统语言
 - **开机启动** — 可选登录时自动启动
 - **原生 macOS 体验** — SwiftUI 构建，菜单栏应用，无 Dock 图标
+
+### v1.1.7 更新内容
+
+- **事件驱动连接状态机** — IOPS 插拔事件驱动三阶段状态：电池供电、AC 连接中、AC 稳定
+- **拔掉即时切换** — `ExternalConnected=false` 后立即显示电池放电，不再等待滞后的 `SystemPowerIn` 归零
+- **AC 连接中状态** — 插上充电器后显示「AC 连接中」，待遥测数据就绪再进入正常状态
+- **更智能的滞后数据处理** — 拔掉信任断开信号；插上等待遥测；充电判定结合能量平衡与 `NotChargingReason`
+- **Popover 动态尺寸** — 窗口随内容伸缩，切换电源状态时不再裁切或留白
 
 ### v1.1.6 更新内容
 
@@ -155,7 +185,6 @@ MIT License. See [LICENSE](LICENSE) for details.
 - **菜单栏功率显示** — Popover 底部可开启「菜单栏显示功率」，在图标旁显示实时瓦数（默认关闭）
 - **按场景显示数值** — 菜单栏功率随当前电源状态切换，不再固定显示系统功耗
 - **设置项分组** — 「登录时启动」与菜单栏开关归入底部卡片，与「详细参数」按钮风格一致
-- **Popover 布局稳定** — 切换 AC 电源状态时，Popover 高度不再跳动
 
 ### 安装
 
@@ -178,6 +207,16 @@ open build/PowerTop.app
 
 - `build/PowerTop.app` — 可直接运行的应用
 - `build/PowerTop.zip` — 可分发用的压缩包
+
+### 连接状态机
+
+PowerTop 在 IOKit 遥测之上叠加事件驱动状态机：
+
+| 阶段 | 触发条件 | 界面 |
+|---|---|---|
+| **电池供电** | 检测到拔掉（`ExternalConnected=false`） | 立即显示电池放电，忽略滞后的 AC 数据 |
+| **AC 连接中** | 检测到插入（`ExternalConnected=true`） | 显示「AC 连接中」，等待 `SystemPowerIn` 或充电信号 |
+| **AC 稳定** | 遥测收敛或 3 秒超时 | 进入充电 / 供电 / 补充放电 |
 
 ### 功率状态
 
@@ -213,4 +252,6 @@ PowerTop 识别四种工作模式：
 - **电池供电时**：系统功耗 = `BatteryPower`（放电功率 = 系统消耗）
 - **补充放电时**：系统功耗 = `SystemLoad`；电池贡献功率来自带符号的 `Amperage` / `BatteryPower`
 - **充放电功率**：由带符号的 `Amperage × Voltage / 1,000,000` 计算，并与 `BatteryPower` 遥测交叉验证
-- **滞后标志处理**：当 `IsCharging` 与电流极性矛盾时，以实际功率流向信号为准
+- **拔掉时**：`ExternalConnected=false` 优先，忽略滞后的 `SystemPowerIn` 和 `IsCharging`
+- **插上时**：立即信任 `ExternalConnected=true`，在 `SystemPowerIn` 更新前可估算功率
+- **滞后标志处理**：当 `IsCharging` 与电流极性或能量平衡矛盾时，以实际功率流向信号为准

@@ -14,7 +14,7 @@ struct MenuBarLabelView: View {
                     alignment: .trailing
                 )
         } else {
-            Image(systemName: data.isOnAC ? "bolt.fill" : "battery.50")
+            Image(systemName: data.effectiveIsOnAC ? "bolt.fill" : "battery.50")
         }
     }
 

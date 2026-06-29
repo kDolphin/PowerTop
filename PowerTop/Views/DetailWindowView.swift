@@ -151,7 +151,7 @@ struct DetailWindowView: View {
             }
             if let reason = data.notChargingReasonDescription {
                 DetailRow(label: String(localized: "Not Charging Reason"), value: reason)
-            } else if !data.isCharging, data.isOnAC {
+            } else if !data.isCharging, data.effectiveIsOnAC {
                 DetailRow(label: String(localized: "Not Charging Reason"), value: String(localized: "None"))
             }
         }

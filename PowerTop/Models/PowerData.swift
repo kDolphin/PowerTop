@@ -26,6 +26,7 @@ struct PowerData {
     let adapterDescription: String?
     let dataSource: PowerDataSource
     let timestamp: Date
+    let connectionPhase: PowerConnectionPhase
 
     // Battery health
     let batteryHealthPercent: Int?
@@ -67,28 +68,35 @@ struct PowerData {
 
     // MARK: - Computed properties
 
-    /// Whether we can confidently determine we're on battery (no AC at all).
-    /// When ExternalConnected=false AND SystemPowerIn=0, even if IsCharging is stale=true,
-    /// we know we're on battery because no AC power is flowing.
-    private var clearlyOnBattery: Bool {
-        !isOnAC && acInputW == 0
+    var isConnectingAC: Bool {
+        connectionPhase == .connectingAC
     }
 
-    /// Effective AC status — uses multiple signals with safety overrides for stale data.
+    /// State machine or ExternalConnected=false — stale telemetry is ignored.
+    private var clearlyOnBattery: Bool {
+        connectionPhase == .onBattery || !isOnAC
+    }
+
+    /// AC input used for state logic — zero when unplugged or still connecting.
+    var effectiveACInputW: Double {
+        if clearlyOnBattery || isConnectingAC { return 0 }
+        return isOnAC ? acInputW : 0
+    }
+
+    /// Effective AC status — driven by connection phase, then telemetry.
     var effectiveIsOnAC: Bool {
-        // Safety: if no AC detected at all, ignore stale IsCharging flag
         if clearlyOnBattery { return false }
+        if isConnectingAC { return true }
+        if effectiveACInputW > 0 { return true }
         if isCharging { return true }
-        if acInputW > 0 { return true }
-        return isOnAC
+        return connectionPhase == .onAC
     }
 
     /// Effective AC output in watts.
     /// Uses SystemPowerIn when available; estimates when SystemPowerIn is 0 or outdated.
     var effectiveACOutputW: Double {
-        if !effectiveIsOnAC { return 0 }
-        if acInputW > 0 { return acInputW }
-        // SystemPowerIn hasn't updated yet (e.g. just plugged in), estimate
+        if !effectiveIsOnAC || isConnectingAC { return 0 }
+        if effectiveACInputW > 0 { return effectiveACInputW }
         if isBatteryCharging {
             return systemPowerW + batteryChargeRateW
         }
@@ -102,11 +110,18 @@ struct PowerData {
     /// Whether the battery is actively charging.
     /// AC input exceeding system load means surplus is charging the battery.
     var isBatteryCharging: Bool {
-        if clearlyOnBattery { return false }
-        if isOnAC && acInputW > systemPowerW + 0.5 { return true }
-        if batteryPowerW < -0.3 { return true }
+        if clearlyOnBattery || isConnectingAC { return false }
         if isBatteryDischarging { return false }
-        if isOnAC && isCharging { return true }
+        if batteryPowerW < -0.3 { return true }
+
+        let hasSurplusAC = effectiveACInputW > systemPowerW + 0.5
+        if hasSurplusAC {
+            if fullyCharged { return false }
+            if let reason = notChargingReason, reason != 0 { return false }
+            return true
+        }
+
+        if isCharging { return true }
         return false
     }
 
@@ -114,7 +129,7 @@ struct PowerData {
     var batteryChargeRateW: Double {
         if !isBatteryCharging { return 0 }
         if batteryPowerW < 0 { return abs(batteryPowerW) }
-        if acInputW > systemPowerW { return acInputW - systemPowerW }
+        if effectiveACInputW > systemPowerW { return effectiveACInputW - systemPowerW }
         return 0
     }
 
@@ -136,6 +151,7 @@ struct PowerData {
     }
 
     var powerSourceDescription: String {
+        if isConnectingAC { return String(localized: "AC Connecting") }
         if isBatteryCharging { return String(localized: "AC Charging") }
         if isSupplementalDischarge { return String(localized: "AC + Battery Supplement") }
         if !effectiveIsOnAC { return String(localized: "Battery Discharging") }
@@ -144,20 +160,21 @@ struct PowerData {
 
     /// Battery is supplementing AC (AC can't provide enough power alone)
     var isSupplementalDischarge: Bool {
-        guard effectiveIsOnAC, acInputW > 0, !isBatteryCharging else { return false }
-        return acInputW + 0.5 < systemPowerW
+        guard !isConnectingAC, effectiveIsOnAC, effectiveACInputW > 0, !isBatteryCharging else { return false }
+        if isBatteryDischarging { return true }
+        return effectiveACInputW + 0.5 < systemPowerW
     }
 
     /// How much power the battery contributes during supplemental discharge.
     var batterySupplementalW: Double {
         guard isSupplementalDischarge else { return 0 }
         if batteryPowerW > 0.3 { return batteryPowerW }
-        return max(0, systemPowerW - acInputW)
+        return max(0, systemPowerW - effectiveACInputW)
     }
 
     /// Primary wattage shown in the popover header.
     var headerPowerW: Double {
-        if !effectiveIsOnAC || isSupplementalDischarge { return systemPowerW }
+        if isConnectingAC || !effectiveIsOnAC || isSupplementalDischarge { return systemPowerW }
         if isBatteryCharging { return effectiveACOutputW }
         return effectiveACOutputW
     }
@@ -216,6 +233,7 @@ struct PowerData {
         batteryVoltageMV: nil, batteryAmperageMA: nil,
         batteryTemperatureC: nil, cycleCount: nil,
         adapterDescription: nil, dataSource: .telemetry, timestamp: Date(),
+        connectionPhase: .onBattery,
         batteryHealthPercent: nil, designCapacityMAH: nil, rawMaxCapacityMAH: nil,
         nominalChargeCapacityMAH: nil, designCycleCount: nil,
         chargingVoltageMV: nil, chargingCurrentMA: nil,
@@ -230,4 +248,34 @@ struct PowerData {
         instantAmperageMA: nil, atCriticalLevel: nil,
         permanentFailureStatus: nil, batteryCellDisconnectCount: nil
     )
+
+    func withConnectionPhase(_ phase: PowerConnectionPhase) -> PowerData {
+        PowerData(
+            systemPowerW: systemPowerW, batteryPowerW: batteryPowerW, acInputW: acInputW,
+            acAdapterWattage: acAdapterWattage, batteryPercent: batteryPercent,
+            isOnAC: isOnAC, isCharging: isCharging, fullyCharged: fullyCharged,
+            wallPowerW: wallPowerW, adapterEfficiencyLossW: adapterEfficiencyLossW,
+            systemVoltageMV: systemVoltageMV, systemCurrentMA: systemCurrentMA,
+            batteryVoltageMV: batteryVoltageMV, batteryAmperageMA: batteryAmperageMA,
+            batteryTemperatureC: batteryTemperatureC, cycleCount: cycleCount,
+            adapterDescription: adapterDescription, dataSource: dataSource, timestamp: timestamp,
+            connectionPhase: phase,
+            batteryHealthPercent: batteryHealthPercent, designCapacityMAH: designCapacityMAH,
+            rawMaxCapacityMAH: rawMaxCapacityMAH, nominalChargeCapacityMAH: nominalChargeCapacityMAH,
+            designCycleCount: designCycleCount, chargingVoltageMV: chargingVoltageMV,
+            chargingCurrentMA: chargingCurrentMA, notChargingReason: notChargingReason,
+            vacVoltageLimit: vacVoltageLimit, cellVoltagesMV: cellVoltagesMV,
+            stateOfCharge: stateOfCharge, qmaxMAH: qmaxMAH, dailyMinSoc: dailyMinSoc,
+            dailyMaxSoc: dailyMaxSoc, totalOperatingTimeMin: totalOperatingTimeMin,
+            lifetimeMaxTempC: lifetimeMaxTempC, lifetimeMinTempC: lifetimeMinTempC,
+            lifetimeAvgTempC: lifetimeAvgTempC, lifetimeMaxPackVoltageMV: lifetimeMaxPackVoltageMV,
+            lifetimeMinPackVoltageMV: lifetimeMinPackVoltageMV,
+            lifetimeMaxChargeCurrentMA: lifetimeMaxChargeCurrentMA,
+            lifetimeMaxDischargeCurrentMA: lifetimeMaxDischargeCurrentMA,
+            batterySerial: batterySerial, deviceName: deviceName,
+            instantAmperageMA: instantAmperageMA, atCriticalLevel: atCriticalLevel,
+            permanentFailureStatus: permanentFailureStatus,
+            batteryCellDisconnectCount: batteryCellDisconnectCount
+        )
+    }
 }

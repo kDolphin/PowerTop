@@ -33,6 +33,16 @@ final class PowerMonitor {
     private var timer: Timer?
     private var powerSourceNotifier: CFRunLoopSource?
     private let updateInterval: TimeInterval = 2.0
+    private let connectingACTimeout: TimeInterval = 3.0
+
+    private enum MachinePhase: Equatable {
+        case onBattery
+        case connectingAC(since: Date)
+        case onAC
+    }
+
+    private var machinePhase: MachinePhase = .onBattery
+    private var lastExternalConnected: Bool?
 
     init() {
         launchAtLogin = (SMAppService.mainApp.status == .enabled)
@@ -40,7 +50,10 @@ final class PowerMonitor {
     }
 
     func start() {
-        updateData()
+        let raw = readPowerData()
+        lastExternalConnected = raw.isOnAC
+        machinePhase = raw.isOnAC ? .onAC : .onBattery
+        publishDisplayData(from: raw)
         scheduleTimer()
         setupPowerSourceNotification()
 
@@ -80,9 +93,9 @@ final class PowerMonitor {
         let callback: IOPowerSourceCallbackType = { ctx in
             guard let ctx = ctx else { return }
             let monitor = Unmanaged<PowerMonitor>.fromOpaque(ctx).takeUnretainedValue()
-            // Multiple delayed refreshes to handle IOKit property update lag.
-            // Unplugging takes longer to propagate than plugging in, so we need
-            // more refreshes over a longer window.
+            DispatchQueue.main.async {
+                monitor.handlePowerSourceEvent()
+            }
             for delay: TimeInterval in [0.1, 0.3, 0.6, 1.0, 1.5, 2.0, 3.0, 5.0] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     monitor.updateData()
@@ -106,8 +119,66 @@ final class PowerMonitor {
     }
 
     private func updateData() {
-        let data = readPowerData()
-        self.currentData = data
+        publishDisplayData(from: readPowerData())
+    }
+
+    private func handlePowerSourceEvent() {
+        guard let connected = readExternalConnected() else {
+            updateData()
+            return
+        }
+
+        if let previous = lastExternalConnected, previous != connected {
+            machinePhase = connected ? .connectingAC(since: Date()) : .onBattery
+        }
+        lastExternalConnected = connected
+        updateData()
+    }
+
+    private func publishDisplayData(from raw: PowerData) {
+        advanceMachinePhase(with: raw)
+        currentData = raw.withConnectionPhase(displayConnectionPhase())
+    }
+
+    private func advanceMachinePhase(with raw: PowerData) {
+        switch machinePhase {
+        case .onBattery:
+            if raw.isOnAC {
+                machinePhase = .connectingAC(since: Date())
+            }
+
+        case .connectingAC(let since):
+            if !raw.isOnAC {
+                machinePhase = .onBattery
+            } else if hasResolvedACState(raw) || Date().timeIntervalSince(since) >= connectingACTimeout {
+                machinePhase = .onAC
+            }
+
+        case .onAC:
+            if !raw.isOnAC {
+                machinePhase = .onBattery
+            }
+        }
+    }
+
+    private func hasResolvedACState(_ raw: PowerData) -> Bool {
+        guard raw.isOnAC else { return false }
+        if raw.acInputW > 0 { return true }
+        if raw.isCharging && raw.batteryPowerW < -0.3 { return true }
+        return false
+    }
+
+    private func displayConnectionPhase() -> PowerConnectionPhase {
+        switch machinePhase {
+        case .onBattery: return .onBattery
+        case .connectingAC: return .connectingAC
+        case .onAC: return .onAC
+        }
+    }
+
+    private nonisolated func readExternalConnected() -> Bool? {
+        guard let props = getIOServiceProperties(className: "AppleSmartBattery") else { return nil }
+        return extractBool(from: props, key: "ExternalConnected")
     }
 
     // MARK: - IOKit Reading
@@ -198,6 +269,7 @@ final class PowerMonitor {
                 batteryTemperatureC: temperature.map { Double($0) / 100.0 },
                 cycleCount: cycleCount, adapterDescription: adapterDescription,
                 dataSource: ds, timestamp: Date(),
+                connectionPhase: .onAC,
                 batteryHealthPercent: batteryHealthPercent,
                 designCapacityMAH: designCapacity, rawMaxCapacityMAH: rawMaxCapacity,
                 nominalChargeCapacityMAH: nominalChargeCapacity,
@@ -236,7 +308,9 @@ final class PowerMonitor {
             let sysVoltage = extractInt(from: telem, key: "SystemVoltageIn")
             let sysCurrent = extractInt(from: telem, key: "SystemCurrentIn")
 
-            let acInputW = Double(systemPowerIn) / 1000.0
+            let reportedACInputW = Double(systemPowerIn) / 1000.0
+            // Ignore stale SystemPowerIn after unplug — ExternalConnected is authoritative.
+            let acInputW = isOnAC ? reportedACInputW : 0
             let systemLoadW = Double(systemLoad) / 1000.0
             // BatteryPower: positive = discharge, negative = charge
             let batteryPowerFromTelemetry = Double(batteryPower) / 1000.0

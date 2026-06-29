@@ -5,6 +5,7 @@
 "Battery Discharging" = "电池放电";
 "AC Powered" = "AC 供电";
 "AC + Battery Supplement" = "AC + 电池补充供电";
+"AC Connecting" = "AC 连接中";
 
 // Not Charging Reason
 "Optimized Battery Charging" = "优化电池充电";

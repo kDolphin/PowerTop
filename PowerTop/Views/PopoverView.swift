@@ -1,65 +1,111 @@
 import SwiftUI
 
+private struct PopoverHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct PopoverHeightObserver: View {
+    let onHeightChange: (CGFloat) -> Void
+
+    var body: some View {
+        GeometryReader { geo in
+            Color.clear
+                .preference(key: PopoverHeightPreferenceKey.self, value: geo.size.height)
+                .onAppear {
+                    onHeightChange(geo.size.height)
+                }
+                .onChange(of: geo.size.height) { _, height in
+                    onHeightChange(height)
+                }
+        }
+    }
+}
+
 struct PopoverView: View {
     let monitor: PowerMonitor
     @Environment(\.openWindow) private var openWindow
+    @State private var measuredContentHeight: CGFloat = 0
 
     private var data: PowerData { monitor.currentData }
 
-    private var popoverLayoutKey: String {
+    private var layoutSignature: String {
         [
+            String(describing: data.connectionPhase),
             data.effectiveIsOnAC ? "ac" : "bat",
+            data.isConnectingAC ? "conn" : "stable",
             data.isBatteryCharging ? "chg" : data.isSupplementalDischarge ? "sup" : "plain",
             data.notChargingReasonDescription != nil ? "reason" : "noreason",
-            data.dataSource == .legacy ? "legacy" : "telem",
-            data.acAdapterWattage > 0 ? "spec" : "nospec",
             data.batteryHealthPercent != nil ? "health" : "nohealth",
+            data.effectiveIsOnAC && data.acAdapterWattage > 0 ? "spec" : "nospec",
         ].joined(separator: "-")
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            headerSection
-            Divider().padding(.horizontal, 12)
-            powerFlowDiagram
-                .frame(minHeight: Self.powerFlowDiagramHeight, alignment: .top)
-                .padding(.vertical, 10)
-            Divider().padding(.horizontal, 12)
-            metricsSection.padding(.horizontal, 14).padding(.vertical, 10)
-            Divider().padding(.horizontal, 12)
-            batterySection.padding(.horizontal, 14).padding(.vertical, 10)
-            Divider().padding(.horizontal, 12)
-            footerSection.padding(.horizontal, 14).padding(.vertical, 8)
+            contentColumn
+            Spacer(minLength: 0)
         }
-        .frame(width: 280)
-        .fixedSize(horizontal: true, vertical: true)
-        .id(popoverLayoutKey)
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { fitPopoverWindow(to: geo.size) }
-                    .onChange(of: geo.size) { _, size in
-                        fitPopoverWindow(to: size)
-                    }
-            }
-        )
+        .frame(width: Self.popoverWidth, alignment: .topLeading)
+        .onPreferenceChange(PopoverHeightPreferenceKey.self) { height in
+            measuredContentHeight = height
+            fitPopoverWindow(to: height)
+        }
+        .onChange(of: layoutSignature) { _, _ in
+            scheduleWindowFit(after: 0.05)
+        }
         .onAppear {
-            // MenuBarExtra popover auto-focuses the first button; clear it to avoid the blue focus ring.
+            scheduleWindowFit(after: 0)
             DispatchQueue.main.async {
                 NSApp.keyWindow?.makeFirstResponder(nil)
             }
         }
     }
 
-    private static let powerFlowDiagramHeight: CGFloat = 108
-    private static let flowBoxRowHeight: CGFloat = 48
+    private var contentColumn: some View {
+        VStack(spacing: 0) {
+            headerSection
+            Divider().padding(.horizontal, 12)
+            powerFlowDiagram
+                .padding(.vertical, 8)
+            Divider().padding(.horizontal, 12)
+            metricsSection
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+            Divider().padding(.horizontal, 12)
+            batterySection
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+            Divider().padding(.horizontal, 12)
+            footerSection
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+        }
+        .frame(width: Self.popoverWidth, alignment: .topLeading)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(
+            PopoverHeightObserver { height in
+                measuredContentHeight = height
+                fitPopoverWindow(to: height)
+            }
+        )
+    }
+
+    private static let popoverWidth: CGFloat = 280
+
+    private var headerIconColor: Color {
+        if data.isConnectingAC { return .secondary }
+        return data.effectiveIsOnAC ? .green : .orange
+    }
 
     // MARK: - Header
 
     private var headerSection: some View {
         HStack {
             Image(systemName: data.effectiveIsOnAC ? "powerplug.fill" : "battery.50")
-                .foregroundStyle(data.effectiveIsOnAC ? .green : .orange)
+                .foregroundStyle(headerIconColor)
                 .font(.title3)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -74,24 +120,45 @@ struct PopoverView: View {
         }
         .padding(.horizontal, 14)
         .padding(.top, 12)
-        .padding(.bottom, 10)
+        .padding(.bottom, 8)
     }
 
     // MARK: - Power Flow Diagram
 
+    @ViewBuilder
     private var powerFlowDiagram: some View {
-        VStack(spacing: 6) {
-            if data.effectiveIsOnAC {
-                if data.isSupplementalDischarge {
-                    supplementalDischargeDiagram
-                } else {
-                    acPoweredDiagram
-                }
+        Group {
+            if data.isConnectingAC {
+                connectingACDiagram
+            } else if data.isSupplementalDischarge {
+                supplementalDischargeDiagram
+            } else if data.effectiveIsOnAC {
+                acPoweredDiagram
             } else {
                 batteryPoweredDiagram
             }
         }
         .padding(.horizontal, 14)
+    }
+
+    private var connectingACDiagram: some View {
+        VStack(spacing: 6) {
+            sourceBox(
+                title: String(localized: "AC Connecting"),
+                value: "—",
+                color: .secondary,
+                icon: "powerplug.fill"
+            )
+            Image(systemName: "arrowtriangle.down.fill")
+                .font(.system(size: 8))
+                .foregroundStyle(.secondary)
+            destBox(
+                title: String(localized: "System"),
+                value: String(format: "%.1f W", data.systemPowerW),
+                color: .primary,
+                icon: "desktopcomputer"
+            )
+        }
     }
 
     private var acPoweredDiagram: some View {
@@ -106,23 +173,14 @@ struct PopoverView: View {
                 .font(.system(size: 8))
                 .foregroundStyle(.secondary)
 
-            flowDestinationRow {
-                if data.isBatteryCharging {
-                    HStack(spacing: 10) {
-                        destBox(
-                            title: String(localized: "Battery Charging"),
-                            value: String(format: "%.1f W", data.batteryChargeRateW),
-                            color: .blue,
-                            icon: "battery.100.bolt"
-                        )
-                        destBox(
-                            title: String(localized: "System"),
-                            value: String(format: "%.1f W", data.systemPowerW),
-                            color: .primary,
-                            icon: "desktopcomputer"
-                        )
-                    }
-                } else {
+            if data.isBatteryCharging {
+                HStack(spacing: 10) {
+                    destBox(
+                        title: String(localized: "Battery Charging"),
+                        value: String(format: "%.1f W", data.batteryChargeRateW),
+                        color: .blue,
+                        icon: "battery.100.bolt"
+                    )
                     destBox(
                         title: String(localized: "System"),
                         value: String(format: "%.1f W", data.systemPowerW),
@@ -130,6 +188,13 @@ struct PopoverView: View {
                         icon: "desktopcomputer"
                     )
                 }
+            } else {
+                destBox(
+                    title: String(localized: "System"),
+                    value: String(format: "%.1f W", data.systemPowerW),
+                    color: .primary,
+                    icon: "desktopcomputer"
+                )
             }
         }
     }
@@ -217,12 +282,29 @@ struct PopoverView: View {
     // MARK: - Metrics
 
     private var metricsSection: some View {
-        VStack(spacing: 7) {
+        VStack(spacing: 6) {
             PowerRowView(icon: "desktopcomputer", iconColor: .primary, label: String(localized: "System Power"), value: String(format: "%.1f W", data.systemPowerW))
-            if data.effectiveIsOnAC {
+
+            if data.effectiveIsOnAC && !data.isConnectingAC {
                 PowerRowView(icon: "powerplug.fill", iconColor: .green, label: String(localized: "AC Adapter Output"), value: String(format: "%.1f W", data.effectiveACOutputW))
             }
-            acBatteryFlowMetricRow
+
+            if data.isBatteryCharging {
+                PowerRowView(
+                    icon: "arrow.down.to.line",
+                    iconColor: .blue,
+                    label: String(localized: "Battery Charging"),
+                    value: String(format: "%.1f W", data.batteryChargeRateW)
+                )
+            } else if data.isSupplementalDischarge {
+                PowerRowView(
+                    icon: "arrow.up.right.and.arrow.down.left",
+                    iconColor: .orange,
+                    label: String(localized: "Battery Supplement"),
+                    value: String(format: "%.1f W", data.batterySupplementalW)
+                )
+            }
+
             if data.effectiveIsOnAC && data.acAdapterWattage > 0 {
                 PowerRowView(
                     icon: "bolt.fill",
@@ -232,6 +314,7 @@ struct PopoverView: View {
                     wrapsValue: data.adapterDescription != nil
                 )
             }
+
             if data.dataSource == .legacy {
                 PowerRowView(
                     icon: "exclamationmark.triangle.fill",
@@ -247,7 +330,7 @@ struct PopoverView: View {
     // MARK: - Battery
 
     private var batterySection: some View {
-        VStack(spacing: 7) {
+        VStack(spacing: 6) {
             HStack(spacing: 8) {
                 Text(String(localized: "Battery Level")).font(.system(size: 12)).foregroundStyle(.secondary)
                 ProgressView(value: Double(data.batteryPercent), total: 100)
@@ -279,7 +362,8 @@ struct PopoverView: View {
             if let voltage = data.batteryVoltageMV {
                 PowerRowView(icon: "waveform.path", iconColor: .secondary, label: String(localized: "Battery Voltage"), value: String(format: "%.2f V", Double(voltage) / 1000.0))
             }
-            if let reason = data.notChargingReasonDescription, data.effectiveIsOnAC && !data.isBatteryCharging {
+            if let reason = data.notChargingReasonDescription,
+               data.effectiveIsOnAC && !data.isConnectingAC && !data.isBatteryCharging {
                 PowerRowView(
                     icon: "info.circle",
                     iconColor: .blue,
@@ -352,56 +436,39 @@ struct PopoverView: View {
         }
     }
 
-    @ViewBuilder
-    private func flowDestinationRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        content()
-            .frame(maxWidth: .infinity, minHeight: Self.flowBoxRowHeight, alignment: .top)
-    }
-
-    @ViewBuilder
-    private var acBatteryFlowMetricRow: some View {
-        if data.isBatteryCharging {
-            PowerRowView(
-                icon: "arrow.down.to.line",
-                iconColor: .blue,
-                label: String(localized: "Battery Charging"),
-                value: String(format: "%.1f W", data.batteryChargeRateW)
-            )
-        } else if data.isSupplementalDischarge {
-            PowerRowView(
-                icon: "arrow.up.right.and.arrow.down.left",
-                iconColor: .orange,
-                label: String(localized: "Battery Supplement"),
-                value: String(format: "%.1f W", data.batterySupplementalW)
-            )
-        } else if data.effectiveIsOnAC {
-            PowerRowView(icon: "arrow.down.to.line", iconColor: .clear, label: " ", value: " ")
-                .opacity(0)
-                .accessibilityHidden(true)
-                .allowsHitTesting(false)
+    private func scheduleWindowFit(after delay: TimeInterval) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            guard measuredContentHeight > 0 else { return }
+            fitPopoverWindow(to: measuredContentHeight)
         }
     }
 
-    private func fitPopoverWindow(to contentSize: CGSize) {
-        DispatchQueue.main.async {
-            guard contentSize.height > 0 else { return }
-            guard let window = NSApp.windows.first(where: { window in
-                window.isVisible && abs(window.frame.width - 280) < 8
-            }) else { return }
+    private static func popoverWindow() -> NSWindow? {
+        NSApp.windows.first(where: { window in
+            window.isVisible && abs(window.frame.width - popoverWidth) < 8
+        })
+    }
 
-            let targetHeight = contentSize.height
-            guard abs(window.frame.height - targetHeight) > 1 else { return }
+    private func fitPopoverWindow(to contentHeight: CGFloat) {
+        DispatchQueue.main.async {
+            guard contentHeight > 0 else { return }
+            guard let window = Self.popoverWindow() else { return }
+
+            let sizeChanged = abs(window.frame.height - contentHeight) > 1
+                || abs(window.frame.width - Self.popoverWidth) > 1
+            guard sizeChanged else { return }
 
             var frame = window.frame
-            frame.origin.y += frame.size.height - targetHeight
-            frame.size.height = targetHeight
+            frame.origin.x += (frame.size.width - Self.popoverWidth) / 2
+            frame.origin.y += frame.size.height - contentHeight
+            frame.size.width = Self.popoverWidth
+            frame.size.height = contentHeight
             window.setFrame(frame, display: true, animate: false)
         }
     }
 
     private func openDetailWindow() {
         let detailTitle = String(localized: "PowerTop Details")
-        // If window already exists, bring it to front
         for window in NSApp.windows {
             if window.title == detailTitle {
                 window.makeKeyAndOrderFront(nil)
@@ -409,7 +476,6 @@ struct PopoverView: View {
                 return
             }
         }
-        // Otherwise open new window directly
         openWindow(id: "detail")
         NSApp.activate(ignoringOtherApps: true)
     }
