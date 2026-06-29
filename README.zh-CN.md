@@ -72,15 +72,9 @@ open build/PowerTop.app
 
 ## 截图展示
 
-**弹出窗口**
+*弹出窗口：功率流向图与实时数据*
 
-![弹出窗口 - AC 充电中](screenshots/popover-charging.jpg)
-
-![弹出窗口 - AC + 电池补充供电](screenshots/popover-supplement.jpg)
-
-**详细参数窗口**
-
-![详细参数窗口](screenshots/detail-window.jpg)
+*详细参数窗口：电池健康与更多信息*
 
 ## 更新内容
 
