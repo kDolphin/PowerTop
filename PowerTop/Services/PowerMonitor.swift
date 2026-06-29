@@ -11,6 +11,8 @@ final class PowerMonitor {
     private static let showPowerInMenuBarKey = "showPowerInMenuBar"
 
     var currentData: PowerData = .empty
+    /// Bumped on each publish so MenuBarExtra label can refresh (SwiftUI may not redraw otherwise).
+    var uiRefreshToken: Int = 0
     var isDataAvailable: Bool = true
     var launchAtLoginError: String?
     var launchAtLogin: Bool {
@@ -57,7 +59,12 @@ final class PowerMonitor {
         showPowerInMenuBar = UserDefaults.standard.bool(forKey: Self.showPowerInMenuBarKey)
     }
 
+    func refreshNow() {
+        updateData()
+    }
+
     func start() {
+        guard timer == nil else { return }
         let (raw, available) = readPowerData()
         isDataAvailable = available
         lastExternalConnected = raw.isOnAC
@@ -116,7 +123,9 @@ final class PowerMonitor {
 
     private func handleSystemWake() {
         updateData()
-        scheduleTimer()
+        if timer == nil {
+            scheduleTimer()
+        }
     }
 
     // MARK: - IOPS Power Source Notification
@@ -200,6 +209,7 @@ final class PowerMonitor {
     private func publishDisplayData(from raw: PowerData) {
         advanceMachinePhase(with: raw)
         currentData = raw.withConnectionPhase(displayConnectionPhase())
+        uiRefreshToken &+= 1
     }
 
     private func advanceMachinePhase(with raw: PowerData) {
@@ -483,7 +493,7 @@ final class PowerMonitor {
             if ampPower > powerThreshold {
                 return .discharging(rateW: ampPower)
             }
-            if ampPower < -powerThreshold {
+            if isOnAC, ampPower < -powerThreshold {
                 return .charging(rateW: abs(ampPower))
             }
         }
@@ -544,10 +554,14 @@ final class PowerMonitor {
         case .idle:
             batteryPowerW = batteryPowerFromTelemetry
             if !isOnAC {
-                if systemLoadW < 0 {
+                if systemLoadW > 0 {
+                    systemPowerW = systemLoadW
+                } else if systemLoadW < 0 {
                     systemPowerW = abs(systemLoadW)
                 } else if batteryPowerFromTelemetry > 0 {
                     systemPowerW = batteryPowerFromTelemetry
+                } else if batteryPowerFromTelemetry < 0 {
+                    systemPowerW = abs(batteryPowerFromTelemetry)
                 }
             } else if systemLoadW > 0 {
                 systemPowerW = systemLoadW
@@ -558,6 +572,10 @@ final class PowerMonitor {
 
         if systemPowerW == 0, let sv = sysVoltage, let sc = sysCurrent, sv > 0, sc > 0 {
             systemPowerW = Double(sv) * Double(sc) / 1_000_000.0
+        }
+
+        if !isOnAC, systemPowerW == 0, systemLoadW > 0 {
+            systemPowerW = systemLoadW
         }
 
         if !isOnAC, systemPowerW == 0, batteryPowerW > 0 {

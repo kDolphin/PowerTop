@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct MenuBarLabelView: View {
-    let data: PowerData
-    let showPower: Bool
-    let isDataAvailable: Bool
+    let monitor: PowerMonitor
+
+    private var data: PowerData { monitor.currentData }
+    private var showPower: Bool { monitor.showPowerInMenuBar }
+    private var isDataAvailable: Bool { monitor.isDataAvailable }
 
     var body: some View {
         if !isDataAvailable {

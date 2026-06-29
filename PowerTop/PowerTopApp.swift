@@ -1,18 +1,31 @@
 import SwiftUI
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var monitor: PowerMonitor?
+    let monitor = PowerMonitor()
+    private var didStart = false
 
-    @MainActor
-    func bind(monitor: PowerMonitor) {
-        guard self.monitor == nil else { return }
-        self.monitor = monitor
+    private func startIfNeeded() {
+        guard !didStart else { return }
+        didStart = true
         monitor.start()
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
+    nonisolated func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
-            monitor?.stop()
+            startIfNeeded()
+        }
+    }
+
+    nonisolated func applicationDidBecomeActive(_ notification: Notification) {
+        Task { @MainActor in
+            monitor.refreshNow()
+        }
+    }
+
+    nonisolated func applicationWillTerminate(_ notification: Notification) {
+        Task { @MainActor in
+            monitor.stop()
         }
     }
 }
@@ -20,18 +33,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct PowerTopApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var monitor = PowerMonitor()
+
+    private var monitor: PowerMonitor { appDelegate.monitor }
 
     var body: some Scene {
         MenuBarExtra {
             PopoverView(monitor: monitor)
-                .task { appDelegate.bind(monitor: monitor) }
         } label: {
-            MenuBarLabelView(
-                data: monitor.currentData,
-                showPower: monitor.showPowerInMenuBar,
-                isDataAvailable: monitor.isDataAvailable
-            )
+            MenuBarLabelView(monitor: monitor)
+                .id(monitor.uiRefreshToken)
         }
         .menuBarExtraStyle(.window)
 
