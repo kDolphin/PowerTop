@@ -64,7 +64,7 @@ struct PopoverView: View {
     private var acPoweredDiagram: some View {
         VStack(spacing: 6) {
             sourceBox(
-                title: String(localized: "AC Adapter"),
+                title: String(localized: data.isBatteryCharging ? "AC Powered" : "AC Adapter"),
                 value: String(format: "%.1f W", data.effectiveACOutputW),
                 color: .green,
                 icon: "powerplug.fill"
