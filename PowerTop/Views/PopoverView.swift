@@ -19,6 +19,12 @@ struct PopoverView: View {
             footerSection.padding(.horizontal, 14).padding(.vertical, 8)
         }
         .frame(width: 280)
+        .onAppear {
+            // MenuBarExtra popover auto-focuses the first button; clear it to avoid the blue focus ring.
+            DispatchQueue.main.async {
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+        }
     }
 
     // MARK: - Header
@@ -263,6 +269,7 @@ struct PopoverView: View {
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
+            .focusEffectDisabled()
 
             HStack {
                 Toggle(String(localized: "Launch at Login"), isOn: Binding(
