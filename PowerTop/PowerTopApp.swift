@@ -9,11 +9,10 @@ struct PowerTopApp: App {
         MenuBarExtra {
             PopoverView(monitor: monitor)
         } label: {
-            Label {
-                Text(String(format: "%.1fW", monitor.currentData.systemPowerW))
-            } icon: {
-                Image(systemName: monitor.currentData.isOnAC ? "bolt.fill" : "battery.50")
-            }
+            MenuBarLabelView(
+                data: monitor.currentData,
+                showPower: monitor.showPowerInMenuBar
+            )
         }
         .menuBarExtraStyle(.window)
 

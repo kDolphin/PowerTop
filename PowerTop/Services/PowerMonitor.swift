@@ -8,6 +8,8 @@ import ServiceManagement
 @MainActor
 @Observable
 final class PowerMonitor {
+    private static let showPowerInMenuBarKey = "showPowerInMenuBar"
+
     var currentData: PowerData = .empty
     var launchAtLogin: Bool {
         didSet {
@@ -22,6 +24,11 @@ final class PowerMonitor {
             }
         }
     }
+    var showPowerInMenuBar: Bool {
+        didSet {
+            UserDefaults.standard.set(showPowerInMenuBar, forKey: Self.showPowerInMenuBarKey)
+        }
+    }
 
     private var timer: Timer?
     private var powerSourceNotifier: CFRunLoopSource?
@@ -29,6 +36,7 @@ final class PowerMonitor {
 
     init() {
         launchAtLogin = (SMAppService.mainApp.status == .enabled)
+        showPowerInMenuBar = UserDefaults.standard.bool(forKey: Self.showPowerInMenuBarKey)
     }
 
     func start() {

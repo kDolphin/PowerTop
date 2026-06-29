@@ -162,6 +162,21 @@ struct PowerData {
         return effectiveACOutputW
     }
 
+    /// Rounded system power for the menu bar, capped at 99 W.
+    var menuBarPowerRoundedW: Int {
+        min(99, max(0, Int(systemPowerW.rounded())))
+    }
+
+    /// Whether actual system power exceeds the menu bar display cap.
+    var menuBarPowerExceedsCap: Bool {
+        systemPowerW > 99
+    }
+
+    /// Compact menu bar label text, e.g. "19W".
+    var menuBarPowerText: String {
+        "\(menuBarPowerRoundedW)W"
+    }
+
     var notChargingReasonDescription: String? {
         guard let reason = notChargingReason, reason != 0 else { return nil }
         // Check individual bits/flags

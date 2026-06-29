@@ -39,6 +39,7 @@
 // Footer
 "Details" = "详细参数";
 "Launch at Login" = "开机启动";
+"Show Power in Menu Bar" = "菜单栏显示功率";
 "Quit" = "退出";
 
 // Detail Window
