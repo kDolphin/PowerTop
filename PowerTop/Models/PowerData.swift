@@ -162,14 +162,25 @@ struct PowerData {
         return effectiveACOutputW
     }
 
-    /// Rounded system power for the menu bar, capped at 99 W.
-    var menuBarPowerRoundedW: Int {
-        min(99, max(0, Int(systemPowerW.rounded())))
+    /// Raw wattage for the menu bar — AC charging shows total AC input; all other scenarios show system load.
+    var menuBarPowerW: Double {
+        if isBatteryCharging { return effectiveACOutputW }
+        return systemPowerW
     }
 
-    /// Whether actual system power exceeds the menu bar display cap.
+    /// Rounded menu bar power, capped at 99 W.
+    var menuBarPowerRoundedW: Int {
+        min(99, max(0, Int(menuBarPowerW.rounded())))
+    }
+
+    /// Whether actual menu bar power exceeds the display cap.
     var menuBarPowerExceedsCap: Bool {
-        systemPowerW > 99
+        menuBarPowerW > 99
+    }
+
+    /// Supplemental discharge while on AC — battery still discharging despite charger connected.
+    var menuBarPowerShowsBatteryWarning: Bool {
+        isSupplementalDischarge
     }
 
     /// Compact menu bar label text, e.g. "19W".
