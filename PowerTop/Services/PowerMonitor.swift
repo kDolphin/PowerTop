@@ -97,6 +97,9 @@ final class PowerMonitor {
             DispatchQueue.main.async {
                 monitor.handlePowerSourceEvent()
             }
+            // Note: multiple staggered refreshes exist to compensate for IOKit lag on plug/unplug.
+            // This can cause bursts on rapid events (review Suggestion 7). Consider future coalescing
+            // with a cancellable DispatchWorkItem if noisy updates become a problem.
             for delay: TimeInterval in [0.1, 0.3, 0.6, 1.0, 1.5, 2.0, 3.0, 5.0] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     monitor.updateData()
