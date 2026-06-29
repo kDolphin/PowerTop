@@ -199,10 +199,22 @@ struct PopoverView: View {
                 PowerRowView(icon: "arrow.up.right.and.arrow.down.left", iconColor: .orange, label: String(localized: "Battery Supplement"), value: String(format: "%.1f W", data.batterySupplementalW))
             }
             if data.effectiveIsOnAC && data.acAdapterWattage > 0 {
-                PowerRowView(icon: "bolt.fill", iconColor: .green, label: String(localized: "Charger Spec"), value: "\(data.acAdapterWattage) W" + (data.adapterDescription.map { " (\($0))" } ?? ""))
+                PowerRowView(
+                    icon: "bolt.fill",
+                    iconColor: .green,
+                    label: String(localized: "Charger Spec"),
+                    value: "\(data.acAdapterWattage) W" + (data.adapterDescription.map { " (\($0))" } ?? ""),
+                    wrapsValue: data.adapterDescription != nil
+                )
             }
             if data.dataSource == .legacy {
-                PowerRowView(icon: "exclamationmark.triangle.fill", iconColor: .yellow, label: String(localized: "Data Source"), value: String(localized: "Estimation Mode"))
+                PowerRowView(
+                    icon: "exclamationmark.triangle.fill",
+                    iconColor: .yellow,
+                    label: String(localized: "Data Source"),
+                    value: String(localized: "Estimation Mode"),
+                    wrapsValue: true
+                )
             }
         }
     }
@@ -243,7 +255,13 @@ struct PopoverView: View {
                 PowerRowView(icon: "waveform.path", iconColor: .secondary, label: String(localized: "Battery Voltage"), value: String(format: "%.2f V", Double(voltage) / 1000.0))
             }
             if let reason = data.notChargingReasonDescription, data.effectiveIsOnAC && !data.isBatteryCharging {
-                PowerRowView(icon: "info.circle", iconColor: .blue, label: String(localized: "Not Charging Reason"), value: reason)
+                PowerRowView(
+                    icon: "info.circle",
+                    iconColor: .blue,
+                    label: String(localized: "Not Charging Reason"),
+                    value: reason,
+                    wrapsValue: true
+                )
             }
         }
     }
