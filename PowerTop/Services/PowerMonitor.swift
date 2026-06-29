@@ -294,18 +294,37 @@ final class PowerMonitor {
     ) -> BatteryFlow {
         let powerThreshold = 0.3
 
-        if let ampPower = amperagePowerW {
-            if ampPower > powerThreshold {
+        // Energy balance on AC: input > load → surplus charges battery.
+        if isOnAC, acInputW > systemLoadW + powerThreshold {
+            if let ampPower = amperagePowerW, ampPower < -powerThreshold {
+                return .charging(rateW: abs(ampPower))
+            }
+            if batteryPowerFromTelemetry < -powerThreshold {
+                return .charging(rateW: abs(batteryPowerFromTelemetry))
+            }
+            return .charging(rateW: acInputW - systemLoadW)
+        }
+
+        // Energy balance on AC: load > input → battery supplements the system.
+        if isOnAC, systemLoadW > acInputW + powerThreshold {
+            if let ampPower = amperagePowerW, ampPower > powerThreshold {
                 let rate = batteryPowerFromTelemetry > powerThreshold
                     ? batteryPowerFromTelemetry
                     : ampPower
                 return .discharging(rateW: rate)
             }
+            if batteryPowerFromTelemetry > powerThreshold {
+                return .discharging(rateW: batteryPowerFromTelemetry)
+            }
+            return .discharging(rateW: systemLoadW - acInputW)
+        }
+
+        if let ampPower = amperagePowerW {
+            if ampPower > powerThreshold {
+                return .discharging(rateW: ampPower)
+            }
             if ampPower < -powerThreshold {
-                let rate = batteryPowerFromTelemetry < -powerThreshold
-                    ? abs(batteryPowerFromTelemetry)
-                    : abs(ampPower)
-                return .charging(rateW: rate)
+                return .charging(rateW: abs(ampPower))
             }
         }
 
@@ -319,9 +338,6 @@ final class PowerMonitor {
         if isOnAC && isChargingFlag {
             if let ampPower = amperagePowerW, ampPower < 0 {
                 return .charging(rateW: abs(ampPower))
-            }
-            if acInputW > systemLoadW + 0.5 {
-                return .charging(rateW: acInputW - systemLoadW)
             }
         }
 

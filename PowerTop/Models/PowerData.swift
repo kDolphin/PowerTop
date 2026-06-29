@@ -100,12 +100,13 @@ struct PowerData {
     }
 
     /// Whether the battery is actively charging.
-    /// Prefers signed battery power; only falls back to IsCharging when flow is ambiguous.
+    /// AC input exceeding system load means surplus is charging the battery.
     var isBatteryCharging: Bool {
         if clearlyOnBattery { return false }
-        if isBatteryDischarging { return false }
+        if isOnAC && acInputW > systemPowerW + 0.5 { return true }
         if batteryPowerW < -0.3 { return true }
-        if isOnAC && isCharging && acInputW > systemPowerW + 0.5 { return true }
+        if isBatteryDischarging { return false }
+        if isOnAC && isCharging { return true }
         return false
     }
 
@@ -144,7 +145,6 @@ struct PowerData {
     /// Battery is supplementing AC (AC can't provide enough power alone)
     var isSupplementalDischarge: Bool {
         guard effectiveIsOnAC, acInputW > 0, !isBatteryCharging else { return false }
-        if isBatteryDischarging { return true }
         return acInputW + 0.5 < systemPowerW
     }
 
