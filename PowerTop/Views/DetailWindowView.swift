@@ -11,33 +11,9 @@ struct DetailWindowView: View {
                 if monitor.isDataAvailable {
                     currentPowerSection
                     batteryHealthSection
-                    if hasCellData {
-                        advancedDisclosure(
-                            title: String(localized: "Cell Data"),
-                            icon: "cylinder.split.1.raised",
-                            color: .cyan
-                        ) {
-                            cellDataContent
-                        }
-                    }
-                    if hasLifetimeData {
-                        advancedDisclosure(
-                            title: String(localized: "Lifetime Statistics"),
-                            icon: "clock.arrow.circlepath",
-                            color: .purple
-                        ) {
-                            lifetimeContent
-                        }
-                    }
-                    if hasDeviceInfo {
-                        advancedDisclosure(
-                            title: String(localized: "Device Information"),
-                            icon: "info.circle",
-                            color: .secondary
-                        ) {
-                            deviceInfoContent
-                        }
-                    }
+                    if hasCellData { cellDataSection }
+                    if hasLifetimeData { lifetimeSection }
+                    if hasDeviceInfo { deviceInfoSection }
                     footerTimestamp
                 } else {
                     unavailableState
@@ -47,6 +23,12 @@ struct DetailWindowView: View {
         }
         .frame(minWidth: 520, minHeight: 500)
         .background(.windowBackground)
+        .focusEffectDisabled()
+        .onAppear {
+            DispatchQueue.main.async {
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+        }
     }
 
     // MARK: - Current Power (merged power + contextual charging)
@@ -211,70 +193,67 @@ struct DetailWindowView: View {
             }
 
             if hasCapacityDetails {
-                nestedDisclosure(String(localized: "Capacity Details")) {
-                    if let design = data.designCapacityMAH {
-                        DetailRow(label: String(localized: "Design Capacity"), value: "\(design) mAh")
-                    }
-                    if let raw = data.rawMaxCapacityMAH {
-                        DetailRow(label: String(localized: "Full Charge Capacity"), value: "\(raw) mAh")
-                    }
-                    if let nom = data.nominalChargeCapacityMAH {
-                        DetailRow(label: String(localized: "Nominal Full Charge Capacity"), value: "\(nom) mAh")
-                    }
+                DetailSubheading(String(localized: "Capacity Details"))
+                if let design = data.designCapacityMAH {
+                    DetailRow(label: String(localized: "Design Capacity"), value: "\(design) mAh")
+                }
+                if let raw = data.rawMaxCapacityMAH {
+                    DetailRow(label: String(localized: "Full Charge Capacity"), value: "\(raw) mAh")
+                }
+                if let nom = data.nominalChargeCapacityMAH {
+                    DetailRow(label: String(localized: "Nominal Full Charge Capacity"), value: "\(nom) mAh")
                 }
             }
 
             if hasElectricalReadings {
-                nestedDisclosure(String(localized: "Electrical Readings")) {
-                    if let voltage = data.batteryVoltageMV {
-                        DetailRow(
-                            label: String(localized: "Battery Voltage"),
-                            value: String(format: "%.2f V", Double(voltage) / 1000.0)
-                        )
-                    }
-                    if let amp = data.batteryAmperageMA {
-                        let sign = amp > 0
-                            ? String(localized: "Discharging")
-                            : (amp < 0 ? String(localized: "Charging") : String(localized: "Idle"))
-                        DetailRow(
-                            label: String(localized: "Battery Current"),
-                            value: String(format: "%d mA (%@)", abs(amp), sign)
-                        )
-                    }
-                    if let instant = data.instantAmperageMA {
-                        DetailRow(
-                            label: String(localized: "Battery Instant Current"),
-                            value: String(format: "%d mA", instant)
-                        )
-                    }
+                DetailSubheading(String(localized: "Electrical Readings"))
+                if let voltage = data.batteryVoltageMV {
+                    DetailRow(
+                        label: String(localized: "Battery Voltage"),
+                        value: String(format: "%.2f V", Double(voltage) / 1000.0)
+                    )
+                }
+                if let amp = data.batteryAmperageMA {
+                    let sign = amp > 0
+                        ? String(localized: "Discharging")
+                        : (amp < 0 ? String(localized: "Charging") : String(localized: "Idle"))
+                    DetailRow(
+                        label: String(localized: "Battery Current"),
+                        value: String(format: "%d mA (%@)", abs(amp), sign)
+                    )
+                }
+                if let instant = data.instantAmperageMA {
+                    DetailRow(
+                        label: String(localized: "Battery Instant Current"),
+                        value: String(format: "%d mA", instant)
+                    )
                 }
             }
 
             if hasStatusAlerts {
-                nestedDisclosure(String(localized: "Status & Alerts")) {
-                    if let critical = data.atCriticalLevel {
-                        DetailRow(
-                            label: String(localized: "Critical Low Battery"),
-                            value: critical ? String(localized: "Yes") : String(localized: "No")
-                        )
-                    }
-                    if let failure = data.permanentFailureStatus {
-                        DetailRow(
-                            label: String(localized: "Permanent Failure Status"),
-                            value: failure == 0
-                                ? String(localized: "Normal")
-                                : String(format: String(localized: "Abnormal (%d)"), failure)
-                        )
-                    }
+                DetailSubheading(String(localized: "Status & Alerts"))
+                if let critical = data.atCriticalLevel {
+                    DetailRow(
+                        label: String(localized: "Critical Low Battery"),
+                        value: critical ? String(localized: "Yes") : String(localized: "No")
+                    )
+                }
+                if let failure = data.permanentFailureStatus {
+                    DetailRow(
+                        label: String(localized: "Permanent Failure Status"),
+                        value: failure == 0
+                            ? String(localized: "Normal")
+                            : String(format: String(localized: "Abnormal (%d)"), failure)
+                    )
                 }
             }
         }
     }
 
-    // MARK: - Advanced sections
+    // MARK: - Additional sections
 
-    private var cellDataContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private var cellDataSection: some View {
+        DetailSection(title: String(localized: "Cell Data"), icon: "cylinder.split.1.raised", color: .cyan) {
             if let cells = data.cellVoltagesMV {
                 if let balance = cellBalanceSummary(cells) {
                     DetailRow(label: String(localized: "Cell Balance"), value: balance)
@@ -297,8 +276,8 @@ struct DetailWindowView: View {
         }
     }
 
-    private var lifetimeContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private var lifetimeSection: some View {
+        DetailSection(title: String(localized: "Lifetime Statistics"), icon: "clock.arrow.circlepath", color: .purple) {
             DetailSubheading(String(localized: "Since First Use"))
             if let total = data.totalOperatingTimeMin {
                 let hours = total / 60
@@ -348,8 +327,8 @@ struct DetailWindowView: View {
         }
     }
 
-    private var deviceInfoContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private var deviceInfoSection: some View {
+        DetailSection(title: String(localized: "Device Information"), icon: "info.circle", color: .secondary) {
             if let serial = data.batterySerial {
                 DetailRow(label: String(localized: "Battery Serial Number"), value: serial)
             }
@@ -458,44 +437,6 @@ struct DetailWindowView: View {
         return "\(count)"
     }
 
-    @ViewBuilder
-    private func advancedDisclosure<Content: View>(
-        title: String,
-        icon: String,
-        color: Color,
-        @ViewBuilder content: @escaping () -> Content
-    ) -> some View {
-        DisclosureGroup {
-            content()
-                .padding(.top, 4)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .foregroundStyle(color)
-                    .font(.system(size: 12))
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-            }
-        }
-        .padding(12)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    @ViewBuilder
-    private func nestedDisclosure<Content: View>(
-        _ title: String,
-        @ViewBuilder content: @escaping () -> Content
-    ) -> some View {
-        DisclosureGroup {
-            content()
-                .padding(.top, 2)
-        } label: {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.top, 4)
-    }
 }
 
 // MARK: - Helper Views
