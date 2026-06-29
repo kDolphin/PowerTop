@@ -43,6 +43,7 @@ final class PowerMonitor {
 
     private var machinePhase: MachinePhase = .onBattery
     private var lastExternalConnected: Bool?
+    private var lastUnplugEventAt: Date?   // used to suppress stale isOnAC=true right after explicit unplug (review Bug 1)
 
     init() {
         launchAtLogin = (SMAppService.mainApp.status == .enabled)
@@ -128,10 +129,18 @@ final class PowerMonitor {
             return
         }
 
-        if let previous = lastExternalConnected, previous != connected {
-            machinePhase = connected ? .connectingAC(since: Date()) : .onBattery
-        }
+        // Always record last known good value on successful read (fixes review Bug 2)
+        let previous = lastExternalConnected
         lastExternalConnected = connected
+
+        if let prev = previous, prev != connected {
+            if connected {
+                machinePhase = .connectingAC(since: Date())
+            } else {
+                machinePhase = .onBattery
+                lastUnplugEventAt = Date()
+            }
+        }
         updateData()
     }
 
@@ -143,8 +152,14 @@ final class PowerMonitor {
     private func advanceMachinePhase(with raw: PowerData) {
         switch machinePhase {
         case .onBattery:
+            // Suppress transition on stale isOnAC=true immediately after an explicit IOPS unplug event.
+            // ExternalConnected=false from the event is authoritative (fixes review Bug 1).
+            if let t = lastUnplugEventAt, Date().timeIntervalSince(t) < 1.5 {
+                return
+            }
             if raw.isOnAC {
                 machinePhase = .connectingAC(since: Date())
+                lastUnplugEventAt = nil
             }
 
         case .connectingAC(let since):
@@ -152,6 +167,7 @@ final class PowerMonitor {
                 machinePhase = .onBattery
             } else if hasResolvedACState(raw) || Date().timeIntervalSince(since) >= connectingACTimeout {
                 machinePhase = .onAC
+                lastUnplugEventAt = nil
             }
 
         case .onAC:
@@ -269,7 +285,7 @@ final class PowerMonitor {
                 batteryTemperatureC: temperature.map { Double($0) / 100.0 },
                 cycleCount: cycleCount, adapterDescription: adapterDescription,
                 dataSource: ds, timestamp: Date(),
-                connectionPhase: .onAC,
+                connectionPhase: .onBattery,  // will be overwritten by withConnectionPhase in publish (review Issue 6)
                 batteryHealthPercent: batteryHealthPercent,
                 designCapacityMAH: designCapacity, rawMaxCapacityMAH: rawMaxCapacity,
                 nominalChargeCapacityMAH: nominalChargeCapacity,
