@@ -23,6 +23,7 @@ struct PopoverView: View {
     let monitor: PowerMonitor
     @Environment(\.openWindow) private var openWindow
     @State private var measuredContentHeight: CGFloat = 0
+    @State private var cachedPopoverWindow: NSWindow?   // cached for robust window targeting (review Bug 3)
 
     private var data: PowerData { monitor.currentData }
 
@@ -436,9 +437,6 @@ struct PopoverView: View {
         }
     }
 
-    // Cache the popover window reference once discovered to avoid repeated fragile searches (review Bug 3).
-    private var cachedPopoverWindow: NSWindow?
-
     private func popoverWindow() -> NSWindow? {
         if let cached = cachedPopoverWindow, cached.isVisible {
             return cached
@@ -453,7 +451,7 @@ struct PopoverView: View {
         }
         let found = candidates.first
         if let f = found {
-            cachedPopoverWindow = f
+            cachedPopoverWindow = f   // @State assignment is allowed
         }
         return found
     }

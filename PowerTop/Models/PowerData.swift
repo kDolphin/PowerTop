@@ -66,8 +66,8 @@ struct PowerData {
     let permanentFailureStatus: Int?
     let batteryCellDisconnectCount: Int?
 
-    // MARK: - Private full memberwise init (centralizes construction and field list)
-    private init(
+    // Full memberwise init (package-internal; centralizes all assignments to avoid drift across call sites)
+    init(
         systemPowerW: Double, batteryPowerW: Double, acInputW: Double,
         acAdapterWattage: Int, batteryPercent: Int,
         isOnAC: Bool, isCharging: Bool, fullyCharged: Bool,
