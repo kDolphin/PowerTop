@@ -40,15 +40,16 @@ struct PopoverView: View {
     }
 
     var body: some View {
-        // Use ZStack so the GeometryReader sees the exact size of the contentSections (intrinsic).
-        // This is more reliable for getting the true height the content wants, avoiding the window
-        // proposal affecting the measured value (main cause of blank space or wrong sizing).
+        // ZStack for reliable height measurement (intrinsic content size).
+        // Force full width on the container so there's no right-side blank.
+        // fixedSize only vertical (ideal height), horizontal fills the 280.
         ZStack(alignment: .topLeading) {
             contentSections
+                .frame(maxWidth: .infinity, alignment: .leading)
             PopoverHeightObserver()
         }
-        .fixedSize(horizontal: true, vertical: true)
         .frame(width: Self.popoverWidth, alignment: .topLeading)
+        .fixedSize(horizontal: false, vertical: true)
         .onPreferenceChange(PopoverHeightPreferenceKey.self) { height in
             if height > 1 {
                 measuredContentHeight = height
@@ -88,6 +89,7 @@ struct PopoverView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private static let popoverWidth: CGFloat = 280
