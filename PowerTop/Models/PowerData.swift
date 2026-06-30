@@ -10,7 +10,8 @@ enum BatteryCellTelemetryLayout: Equatable {
     /// Pack-level `CellVoltage` / `Qmax` arrays — one entry per physical cell.
     case perCellArrays
     /// Bank/cell nodes — voltage and Qmax per series group, currents per parallel cell.
-    case seriesParallel(seriesCount: Int, parallelCount: Int)
+    /// `parallelCountKnown` is false when no cell nodes were found (topology shows series groups only).
+    case seriesParallel(seriesCount: Int, parallelCount: Int, parallelCountKnown: Bool)
 }
 
 struct BatteryParallelCellCurrent: Equatable {

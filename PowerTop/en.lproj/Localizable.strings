@@ -95,6 +95,7 @@
 "Cell %d" = "Cell %d";
 "—" = "—";
 "Battery topology: %dS%dP (%d cells)" = "Battery topology: %dS%dP (%d cells)";
+"Battery topology: %d series groups" = "Battery topology: %d series groups";
 "Battery topology: %d cells" = "Battery topology: %d cells";
 "Series Groups" = "Series Groups";
 "Series Group %d" = "Series Group %d";

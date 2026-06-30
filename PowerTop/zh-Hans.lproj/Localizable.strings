@@ -95,6 +95,7 @@
 "Cell %d" = "电芯 %d";
 "—" = "—";
 "Battery topology: %dS%dP (%d cells)" = "电芯拓扑：%d 串 × %d 并（共 %d 节）";
+"Battery topology: %d series groups" = "电芯拓扑：%d 个串联组";
 "Battery topology: %d cells" = "电芯拓扑：共 %d 节";
 "Series Groups" = "串联组";
 "Series Group %d" = "串联组 %d";

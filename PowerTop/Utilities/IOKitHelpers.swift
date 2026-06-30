@@ -108,8 +108,39 @@ private struct BatteryBankReading {
     let qmaxMAH: Int?
 }
 
-/// Reads cell telemetry. Pack-level arrays map 1:1 to physical cells; bank nodes expose series-group V/Qmax plus per-parallel-cell current.
+private struct BatteryCellSlot {
+    let bankID: Int
+    let cellID: Int
+}
+
+/// Reads cell telemetry. Apple Silicon exposes series groups via bank nodes; pack-level arrays are a fallback when each entry is a distinct physical cell.
 func readBatteryCellTelemetry(packBatteryData: [String: Any]?) -> BatteryCellTelemetry? {
+    let banks = readBatteryBankReadings()
+    if !banks.isEmpty {
+        let sortedBanks = banks.sorted { $0.bankID < $1.bankID }
+        let voltages = sortedBanks.compactMap(\.voltageMV)
+        let qmaxValues = sortedBanks.compactMap(\.qmaxMAH)
+        if !voltages.isEmpty, voltages.count == qmaxValues.count {
+            let parallelCells = readBatteryParallelCellCurrents()
+            let cellSlots = readBatteryCellSlots()
+            let parallelCount = inferredParallelCount(parallelCells: parallelCells, cellSlots: cellSlots)
+            let parallelCountKnown = parallelCount > 1
+                || !parallelCells.isEmpty
+                || !cellSlots.isEmpty
+
+            return BatteryCellTelemetry(
+                layout: .seriesParallel(
+                    seriesCount: voltages.count,
+                    parallelCount: parallelCount,
+                    parallelCountKnown: parallelCountKnown
+                ),
+                voltagesMV: voltages,
+                qmaxMAH: qmaxValues,
+                parallelCellCurrents: parallelCells
+            )
+        }
+    }
+
     if let pack = packBatteryData,
        let voltages = extractIntArray(from: pack, key: "CellVoltage"),
        let qmax = extractIntArray(from: pack, key: "Qmax"),
@@ -123,25 +154,20 @@ func readBatteryCellTelemetry(packBatteryData: [String: Any]?) -> BatteryCellTel
         )
     }
 
-    let banks = readBatteryBankReadings()
-    guard !banks.isEmpty else { return nil }
+    return nil
+}
 
-    let sortedBanks = banks.sorted { $0.bankID < $1.bankID }
-    let voltages = sortedBanks.compactMap(\.voltageMV)
-    let qmaxValues = sortedBanks.compactMap(\.qmaxMAH)
-    guard !voltages.isEmpty, voltages.count == qmaxValues.count else { return nil }
-
-    let parallelCells = readBatteryParallelCellCurrents()
-    let parallelCount = parallelCells.isEmpty
-        ? 1
-        : (Dictionary(grouping: parallelCells, by: \.bankID).values.map(\.count).max() ?? 1)
-
-    return BatteryCellTelemetry(
-        layout: .seriesParallel(seriesCount: voltages.count, parallelCount: parallelCount),
-        voltagesMV: voltages,
-        qmaxMAH: qmaxValues,
-        parallelCellCurrents: parallelCells
-    )
+private func inferredParallelCount(
+    parallelCells: [BatteryParallelCellCurrent],
+    cellSlots: [BatteryCellSlot]
+) -> Int {
+    if !parallelCells.isEmpty {
+        return Dictionary(grouping: parallelCells, by: \.bankID).values.map(\.count).max() ?? 1
+    }
+    if !cellSlots.isEmpty {
+        return Dictionary(grouping: cellSlots, by: \.bankID).values.map(\.count).max() ?? 1
+    }
+    return 1
 }
 
 private func readBatteryBankReadings() -> [BatteryBankReading] {
@@ -168,6 +194,31 @@ private func readBatteryBankReadings() -> [BatteryBankReading] {
         }
     }
     return results
+}
+
+private func readBatteryCellSlots() -> [BatteryCellSlot] {
+    let matching = IOServiceMatching("AppleSmartBatteryCell")
+    var iterator: io_iterator_t = 0
+    guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == KERN_SUCCESS else {
+        return []
+    }
+    defer { IOObjectRelease(iterator) }
+
+    var results: [BatteryCellSlot] = []
+    while true {
+        let service = IOIteratorNext(iterator)
+        guard service != 0 else { break }
+        defer { IOObjectRelease(service) }
+
+        guard let props = copyServiceProperties(service) else { continue }
+        guard let bankID = extractInt(from: props, key: "BankID"),
+              let cellID = extractInt(from: props, key: "CellID") else { continue }
+        results.append(BatteryCellSlot(bankID: bankID, cellID: cellID))
+    }
+    return results.sorted { lhs, rhs in
+        if lhs.bankID == rhs.bankID { return lhs.cellID < rhs.cellID }
+        return lhs.bankID < rhs.bankID
+    }
 }
 
 private func readBatteryParallelCellCurrents() -> [BatteryParallelCellCurrent] {

@@ -432,12 +432,18 @@ struct DetailWindowView: View {
 
     private var cellTopologyDescription: String? {
         switch data.batteryCellLayout {
-        case .seriesParallel(let seriesCount, let parallelCount):
+        case .seriesParallel(let seriesCount, let parallelCount, let parallelCountKnown):
+            if parallelCountKnown, parallelCount > 1 {
+                return String(
+                    format: String(localized: "Battery topology: %dS%dP (%d cells)"),
+                    seriesCount,
+                    parallelCount,
+                    seriesCount * parallelCount
+                )
+            }
             return String(
-                format: String(localized: "Battery topology: %dS%dP (%d cells)"),
-                seriesCount,
-                parallelCount,
-                seriesCount * parallelCount
+                format: String(localized: "Battery topology: %d series groups"),
+                seriesCount
             )
         case .perCellArrays:
             if let count = data.cellVoltagesMV?.count, count > 0 {
