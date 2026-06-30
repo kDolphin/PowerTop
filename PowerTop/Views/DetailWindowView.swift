@@ -283,10 +283,14 @@ struct DetailWindowView: View {
 
             if usesSeriesParallelLayout {
                 DetailSubheading(String(localized: "Series Groups"))
+                Text(String(localized: "Series group Qmax is the parallel pair's estimated full-charge capacity (mAh), not derived from cell currents."))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .padding(.bottom, 2)
                 ForEach(Array(seriesGroupEntries.enumerated()), id: \.offset) { idx, entry in
                     DetailRow(
                         label: String(format: String(localized: "Series Group %d"), idx + 1),
-                        value: cellSummary(voltageMV: entry.voltageMV, qmaxMAH: entry.qmaxMAH)
+                        value: seriesGroupSummary(voltageMV: entry.voltageMV, qmaxMAH: entry.qmaxMAH)
                     )
                 }
                 if allSeriesGroupsIdentical {
@@ -298,6 +302,10 @@ struct DetailWindowView: View {
 
                 if let currents = data.batteryParallelCellCurrents, !currents.isEmpty {
                     DetailSubheading(String(localized: "Parallel Cell Currents"))
+                    Text(String(localized: "Instantaneous current per parallel cell; unequal split within a group is normal."))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .padding(.bottom, 2)
                     ForEach(Array(currents.enumerated()), id: \.offset) { _, cell in
                         DetailRow(
                             label: parallelCellLabel(bankID: cell.bankID, cellID: cell.cellID),
@@ -480,6 +488,17 @@ struct DetailWindowView: View {
             bankID + 1,
             cellID + 1
         )
+    }
+
+    private func seriesGroupSummary(voltageMV: Int?, qmaxMAH: Int?) -> String {
+        var parts: [String] = []
+        if let voltageMV {
+            parts.append(String(format: "%.3f V", Double(voltageMV) / 1000.0))
+        }
+        if let qmaxMAH {
+            parts.append(String(format: String(localized: "Qmax %d mAh"), qmaxMAH))
+        }
+        return parts.isEmpty ? String(localized: "—") : parts.joined(separator: " · ")
     }
 
     private func cellSummary(voltageMV: Int?, qmaxMAH: Int?) -> String {
