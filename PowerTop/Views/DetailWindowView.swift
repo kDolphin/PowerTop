@@ -195,9 +195,6 @@ struct DetailWindowView: View {
                     value: String(format: "%.1f °C", temp)
                 )
             }
-            if let mfg = data.batteryManufactureDate {
-                DetailRow(label: String(localized: "Manufacture Date"), value: mfg)
-            }
             if let minSoc = data.dailyMinSoc, let maxSoc = data.dailyMaxSoc {
                 DetailRow(
                     label: String(localized: "Optimized Charging Range"),
@@ -388,10 +385,9 @@ struct DetailWindowView: View {
             if let name = data.deviceName {
                 DetailRow(label: String(localized: "Battery Management Chip"), value: name)
             }
-            Text(String(localized: "Device info is shown locally only and is not uploaded."))
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-                .padding(.top, 4)
+            if let mfg = data.batteryManufactureDate {
+                DetailRow(label: String(localized: "Manufacture Date"), value: mfg)
+            }
         }
     }
 
@@ -530,7 +526,7 @@ struct DetailWindowView: View {
     }
 
     private var hasDeviceInfo: Bool {
-        data.batterySerial != nil || data.deviceName != nil
+        data.batterySerial != nil || data.deviceName != nil || data.batteryManufactureDate != nil
     }
 
     private var hasCapacityDetails: Bool {
