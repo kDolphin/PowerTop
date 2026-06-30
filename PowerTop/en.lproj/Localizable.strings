@@ -91,6 +91,8 @@
 
 // Detail - Cell Data
 "Cell Data" = "Cell Data";
+"Cell %d" = "Cell %d";
+"—" = "—";
 "Cell Balance" = "Cell Balance";
 "%d mV spread — %@" = "%d mV spread — %@";
 "Fair" = "Fair";

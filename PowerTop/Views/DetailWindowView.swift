@@ -274,20 +274,12 @@ struct DetailWindowView: View {
                 if let balance = cellBalanceSummary(cells) {
                     DetailRow(label: String(localized: "Cell Balance"), value: balance)
                 }
-                ForEach(Array(cells.enumerated()), id: \.offset) { idx, mv in
-                    DetailRow(
-                        label: String(format: String(localized: "Cell %d Voltage"), idx + 1),
-                        value: String(format: "%.3f V", Double(mv) / 1000.0)
-                    )
-                }
             }
-            if let qmax = data.qmaxMAH {
-                ForEach(Array(qmax.enumerated()), id: \.offset) { idx, mah in
-                    DetailRow(
-                        label: String(format: String(localized: "Cell %d Full Charge Capacity"), idx + 1),
-                        value: "\(mah) mAh"
-                    )
-                }
+            ForEach(Array(cellDisplayEntries.enumerated()), id: \.offset) { idx, entry in
+                DetailRow(
+                    label: String(format: String(localized: "Cell %d"), idx + 1),
+                    value: cellSummary(voltageMV: entry.voltageMV, qmaxMAH: entry.qmaxMAH)
+                )
             }
         }
     }
@@ -390,7 +382,31 @@ struct DetailWindowView: View {
     // MARK: - Helpers
 
     private var hasCellData: Bool {
-        data.cellVoltagesMV != nil || data.qmaxMAH != nil
+        !cellDisplayEntries.isEmpty
+    }
+
+    private var cellDisplayEntries: [(voltageMV: Int?, qmaxMAH: Int?)] {
+        let voltages = data.cellVoltagesMV ?? []
+        let capacities = data.qmaxMAH ?? []
+        let count = max(voltages.count, capacities.count)
+        guard count > 0 else { return [] }
+        return (0..<count).map { index in
+            (
+                voltageMV: index < voltages.count ? voltages[index] : nil,
+                qmaxMAH: index < capacities.count ? capacities[index] : nil
+            )
+        }
+    }
+
+    private func cellSummary(voltageMV: Int?, qmaxMAH: Int?) -> String {
+        var parts: [String] = []
+        if let voltageMV {
+            parts.append(String(format: "%.3f V", Double(voltageMV) / 1000.0))
+        }
+        if let qmaxMAH {
+            parts.append("\(qmaxMAH) mAh")
+        }
+        return parts.isEmpty ? String(localized: "—") : parts.joined(separator: " · ")
     }
 
     private var hasLifetimeData: Bool {

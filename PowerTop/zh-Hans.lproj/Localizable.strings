@@ -91,6 +91,8 @@
 
 // Detail - Cell Data
 "Cell Data" = "电芯数据";
+"Cell %d" = "电芯 %d";
+"—" = "—";
 "Cell Balance" = "电芯均衡";
 "%d mV spread — %@" = "压差 %d mV — %@";
 "Fair" = "一般";

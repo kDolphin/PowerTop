@@ -319,9 +319,10 @@ final class PowerMonitor {
 
         // BatteryData (deep)
         let batteryData = extractDict(from: props, key: "BatteryData")
-        let cellVoltages = batteryData.flatMap { extractIntArray(from: $0, key: "CellVoltage") }
+        let cellTelemetry = readBatteryCellArrays(packBatteryData: batteryData)
+        let cellVoltages = cellTelemetry?.voltages
+        let qmax = cellTelemetry?.qmax
         let stateOfCharge = batteryData.flatMap { extractInt(from: $0, key: "StateOfCharge") }
-        let qmax = batteryData.flatMap { extractIntArray(from: $0, key: "Qmax") }
         let dailyMinSoc = batteryData.flatMap { extractInt(from: $0, key: "DailyMinSoc") }
         let dailyMaxSoc = batteryData.flatMap { extractInt(from: $0, key: "DailyMaxSoc") }
 
