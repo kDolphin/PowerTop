@@ -104,6 +104,9 @@
 "Qmax %d mAh" = "Qmax %d mAh";
 "Instantaneous current per parallel cell; unequal split within a group is normal." = "Instantaneous current per parallel cell; unequal split within a group is normal.";
 "Cell Balance" = "Cell Balance";
+"Series Voltage Balance" = "Series Voltage Balance";
+"Parallel Current Balance" = "Parallel Current Balance";
+"%d mA max within-group spread — %@" = "%d mA max within-group spread — %@";
 "%d mV spread — %@" = "%d mV spread — %@";
 "Fair" = "Fair";
 "Worth Checking" = "Worth Checking";

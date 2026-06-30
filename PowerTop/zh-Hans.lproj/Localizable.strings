@@ -104,6 +104,9 @@
 "Qmax %d mAh" = "Qmax %d mAh";
 "Instantaneous current per parallel cell; unequal split within a group is normal." = "各并联节的瞬时电流；同组内两节电流不均是正常现象。";
 "Cell Balance" = "电芯均衡";
+"Series Voltage Balance" = "串联组电压均衡";
+"Parallel Current Balance" = "并联节电流均衡";
+"%d mA max within-group spread — %@" = "组内最大电流差 %d mA — %@";
 "%d mV spread — %@" = "压差 %d mV — %@";
 "Fair" = "一般";
 "Worth Checking" = "建议关注";

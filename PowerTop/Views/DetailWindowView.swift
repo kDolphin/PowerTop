@@ -277,8 +277,13 @@ struct DetailWindowView: View {
                     .padding(.bottom, 2)
             }
 
-            if let cells = data.cellVoltagesMV, let balance = cellBalanceSummary(cells) {
-                DetailRow(label: String(localized: "Cell Balance"), value: balance)
+            if let cells = data.cellVoltagesMV, let balance = seriesVoltageBalanceSummary(cells) {
+                DetailRow(label: String(localized: "Series Voltage Balance"), value: balance)
+            }
+            if usesSeriesParallelLayout,
+               let currents = data.batteryParallelCellCurrents,
+               let balance = parallelCurrentBalanceSummary(currents) {
+                DetailRow(label: String(localized: "Parallel Current Balance"), value: balance)
             }
 
             if usesSeriesParallelLayout {
@@ -552,18 +557,38 @@ struct DetailWindowView: View {
         return .red
     }
 
-    private func cellBalanceSummary(_ cells: [Int]) -> String? {
-        guard cells.count >= 2, let minMV = cells.min(), let maxMV = cells.max() else { return nil }
+    private func seriesVoltageBalanceSummary(_ voltagesMV: [Int]) -> String? {
+        guard voltagesMV.count >= 2, let minMV = voltagesMV.min(), let maxMV = voltagesMV.max() else { return nil }
         let delta = maxMV - minMV
-        let status: String
-        if delta <= 50 {
-            status = String(localized: "Normal")
-        } else if delta <= 100 {
-            status = String(localized: "Fair")
-        } else {
-            status = String(localized: "Worth Checking")
+        return String(format: String(localized: "%d mV spread — %@"), delta, balanceStatus(forMillivoltSpread: delta))
+    }
+
+    private func parallelCurrentBalanceSummary(_ currents: [BatteryParallelCellCurrent]) -> String? {
+        let grouped = Dictionary(grouping: currents, by: \.bankID)
+        let spreads = grouped.values.compactMap { cells -> Int? in
+            guard cells.count >= 2 else { return nil }
+            let values = cells.map(\.currentMA)
+            guard let minMA = values.min(), let maxMA = values.max() else { return nil }
+            return maxMA - minMA
         }
-        return String(format: String(localized: "%d mV spread — %@"), delta, status)
+        guard let worstSpread = spreads.max() else { return nil }
+        return String(
+            format: String(localized: "%d mA max within-group spread — %@"),
+            worstSpread,
+            balanceStatus(forMilliampSpread: worstSpread)
+        )
+    }
+
+    private func balanceStatus(forMillivoltSpread delta: Int) -> String {
+        if delta <= 50 { return String(localized: "Normal") }
+        if delta <= 100 { return String(localized: "Fair") }
+        return String(localized: "Worth Checking")
+    }
+
+    private func balanceStatus(forMilliampSpread delta: Int) -> String {
+        if delta <= 80 { return String(localized: "Normal") }
+        if delta <= 150 { return String(localized: "Fair") }
+        return String(localized: "Worth Checking")
     }
 
     private func protectionTriggerLabel(count: Int) -> String {
