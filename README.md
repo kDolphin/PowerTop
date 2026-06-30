@@ -5,7 +5,7 @@
 A clean, lightweight menu bar app that shows you exactly how much power your MacBook is using.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.0-blue" />
+  <img src="https://img.shields.io/badge/version-1.3.0-blue" />
   <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue" />
   <img src="https://img.shields.io/badge/architecture-Apple%20Silicon-green" />
   <img src="https://img.shields.io/badge/license-MIT-orange" />
@@ -26,7 +26,8 @@ It gives you clear, real-time power information directly in the menu bar and a s
 - **Instant power numbers** — System power, charger output, and battery charge or discharge rate.
 - **Charger load** — Know your adapter's wattage and how much of it is being used.
 - **Battery overview** — Quick view of battery level, health, temperature, and cycle count.
-- **Detailed information** — Open the details window to see cell voltages, charging status, lifetime stats, and more.
+- **Estimated battery time** — Time to empty or full in the popover and detail view when macOS no longer provides it.
+- **Detailed information** — Cell topology (3S2P), series-group voltage, parallel cell currents, charging status, and lifetime stats.
 
 Everything updates live and stays accurate even when you plug in or unplug your charger.
 
@@ -88,7 +89,18 @@ open build/PowerTop.app
 
 ## What's New
 
-For the latest improvements and full release notes, visit the [Releases](https://github.com/kDolphin/PowerTop/releases) page.
+### v1.3.0
+
+- **Estimated battery time** — Computes time to empty or full from remaining energy and smoothed power when macOS stops reporting `AvgTimeToEmpty` / `AvgTimeToFull`; shown in popover and detail view
+- **Cell data fix (Apple Silicon)** — Reads per-series-group voltage/Qmax and per-parallel-cell current from IOKit bank/cell nodes (3S2P layout)
+- **Clearer cell balance** — Separate series voltage balance and parallel current balance
+- **Detail window polish** — Fixed duplicate rows, moved manufacture date to device info, improved labels
+
+### v1.2.0
+
+- Redesigned detail window, flat layout, instant menu bar updates after wake, 0 W idle fix, cell balance summary
+
+[Older releases →](https://github.com/kDolphin/PowerTop/releases)
 
 ## License
 
