@@ -64,6 +64,11 @@
 "Remaining Capacity" = "Remaining Capacity";
 "Est. Time to Empty" = "Est. Time to Empty";
 "Est. Time to Full" = "Est. Time to Full";
+"Est. Time to %d%%" = "Est. Time to %d%%";
+"Estimated to %d%% charge limit (%@)." = "Estimated to %d%% charge limit (%@).";
+"Charge Limit" = "Charge Limit";
+"macOS setting" = "macOS setting";
+"Optimized Charging" = "Optimized Charging";
 "Estimated from remaining energy and smoothed power (macOS no longer provides this)." = "Estimated from remaining energy and smoothed power (macOS no longer provides this).";
 "Average System Power" = "Average System Power";
 "Manufacture Date" = "Manufacture Date";

@@ -64,6 +64,11 @@
 "Remaining Capacity" = "剩余容量";
 "Est. Time to Empty" = "预计剩余时间";
 "Est. Time to Full" = "预计充满时间";
+"Est. Time to %d%%" = "预计充至 %d%%";
+"Estimated to %d%% charge limit (%@)." = "按 %d%% 充电上限估算（%@）。";
+"Charge Limit" = "充电上限";
+"macOS setting" = "系统设置";
+"Optimized Charging" = "优化充电";
 "Estimated from remaining energy and smoothed power (macOS no longer provides this)." = "根据剩余电量与平滑功耗估算（macOS 已不再提供此数据）。";
 "Average System Power" = "平均系统功耗";
 "Manufacture Date" = "制造日期";

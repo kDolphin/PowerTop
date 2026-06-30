@@ -117,22 +117,47 @@ func readBatteryCapacitySnapshot(from props: [String: Any]) -> BatteryCapacitySn
             ?? batteryData.flatMap { extractInt(from: $0, key: key) }
     }
 
+    let bankBatteryData = readFirstBankBatteryData()
     return BatteryCapacitySnapshot(
         designCapacityMAH: packOrBatteryData("DesignCapacity"),
         fullChargeCapacityMAH: batteryData.flatMap { extractInt(from: $0, key: "FullChargeCapacity") }
             ?? extractInt(from: props, key: "FullChargeCapacity"),
-        rawMaxCapacityMAH: packOrBatteryData("AppleRawMaxCapacity"),
+        rawMaxCapacityMAH: packOrBatteryData("AppleRawMaxCapacity")
+            ?? bankBatteryData.flatMap { extractInt(from: $0, key: "AppleRawMaxCapacity") },
         nominalChargeCapacityMAH: packOrBatteryData("NominalChargeCapacity"),
         remainingCapacityMAH: batteryData.flatMap { extractInt(from: $0, key: "RemainingCapacity") }
             ?? extractInt(from: props, key: "RemainingCapacity"),
         stateOfCharge: batteryData.flatMap { extractInt(from: $0, key: "StateOfCharge") }
-            ?? extractInt(from: props, key: "StateOfCharge"),
+            ?? extractInt(from: props, key: "StateOfCharge")
+            ?? bankBatteryData.flatMap { extractInt(from: $0, key: "StateOfCharge") },
         dailyMinSoc: batteryData.flatMap { extractInt(from: $0, key: "DailyMinSoc") }
-            ?? extractInt(from: props, key: "DailyMinSoc"),
+            ?? extractInt(from: props, key: "DailyMinSoc")
+            ?? bankBatteryData.flatMap { extractInt(from: $0, key: "DailyMinSoc") },
         dailyMaxSoc: batteryData.flatMap { extractInt(from: $0, key: "DailyMaxSoc") }
-            ?? extractInt(from: props, key: "DailyMaxSoc"),
+            ?? extractInt(from: props, key: "DailyMaxSoc")
+            ?? bankBatteryData.flatMap { extractInt(from: $0, key: "DailyMaxSoc") },
         temperatureCentidegrees: packOrBatteryData("Temperature")
+            ?? bankBatteryData.flatMap { extractInt(from: $0, key: "Temperature") }
     )
+}
+
+private func readFirstBankBatteryData() -> [String: Any]? {
+    let matching = IOServiceMatching("AppleSmartBatteryBank")
+    var iterator: io_iterator_t = 0
+    guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == KERN_SUCCESS else {
+        return nil
+    }
+    defer { IOObjectRelease(iterator) }
+
+    while true {
+        let service = IOIteratorNext(iterator)
+        guard service != 0 else { break }
+        defer { IOObjectRelease(service) }
+        guard let props = copyServiceProperties(service),
+              let batteryData = extractDict(from: props, key: "BatteryData") else { continue }
+        return batteryData
+    }
+    return nil
 }
 
 /// macOS uses 65535 as an invalid sentinel for battery time estimates.

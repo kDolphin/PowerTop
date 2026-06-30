@@ -28,6 +28,7 @@ SWIFT_FILES=(
     "$PROJECT_DIR/PowerTop/Utilities/AppInfo.swift"
     "$PROJECT_DIR/PowerTop/Utilities/IOKitHelpers.swift"
     "$PROJECT_DIR/PowerTop/Utilities/BatteryTimeEstimator.swift"
+    "$PROJECT_DIR/PowerTop/Utilities/BatteryChargeLimit.swift"
     "$PROJECT_DIR/PowerTop/Utilities/TemperatureUnits.swift"
     "$PROJECT_DIR/PowerTop/Models/PowerConnectionPhase.swift"
     "$PROJECT_DIR/PowerTop/Models/PowerData.swift"

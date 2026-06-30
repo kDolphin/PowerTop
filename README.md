@@ -5,7 +5,7 @@
 A clean, lightweight menu bar app that shows you exactly how much power your MacBook is using.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.2-blue" />
+  <img src="https://img.shields.io/badge/version-1.3.3-blue" />
   <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue" />
   <img src="https://img.shields.io/badge/architecture-Apple%20Silicon-green" />
   <img src="https://img.shields.io/badge/license-MIT-orange" />
@@ -26,7 +26,7 @@ It gives you clear, real-time power information directly in the menu bar and a s
 - **Instant power numbers** — System power, charger output, and battery charge or discharge rate.
 - **Charger load** — Know your adapter's wattage and how much of it is being used.
 - **Battery overview** — Quick view of battery level, health, temperature, and cycle count.
-- **Estimated battery time** — Time to empty or full in the popover and detail view when macOS no longer provides it.
+- **Estimated battery time** — Time to empty or full in the popover and detail view; respects macOS charge limits (80/85/90/95%) and third-party apps like AlDente.
 - **Detailed information** — Auto-detected cell topology (e.g. 3S2P), series-group voltage, parallel cell currents, charging status, and lifetime stats.
 
 Everything updates live and stays accurate even when you plug in or unplug your charger.
@@ -88,6 +88,11 @@ open build/PowerTop.app
 <a href="screenshot/detail-window.png" target="_blank"><img src="screenshot/detail-window.png" width="420" alt="PowerTop Details"></a>
 
 ## What's New
+
+### v1.3.3
+
+- **Charge-limit-aware estimates** — Time-to-full now targets your effective charge limit (macOS Settings, AlDente, or Optimized Charging hold) instead of always assuming 100%
+- **Smarter limit detection** — Ignores stale AlDente configs when `useTahoeNativeLimit` is enabled; only uses Optimized Charging `DailyMaxSoc` when the pause flag is active
 
 ### v1.3.2
 

@@ -53,7 +53,11 @@ struct BatteryTimeEstimator {
         guard instant >= 0.2 else { return chargeEMA }
         let smoothed = ema(previous: chargeEMA, sample: instant)
         chargeEMA = smoothed
-        return applyChargeTaper(rateW: smoothed, stateOfCharge: data.stateOfCharge ?? data.batteryPercent)
+        return applyChargeTaper(
+            rateW: smoothed,
+            stateOfCharge: data.stateOfCharge ?? data.batteryPercent,
+            targetSoc: data.chargeLimitPercent
+        )
     }
 
     private mutating func switchMode(_ mode: Mode) {
@@ -76,10 +80,13 @@ struct BatteryTimeEstimator {
         return previous + emaAlpha * (sample - previous)
     }
 
-    /// Reduce effective charge rate at high SOC to approximate constant-voltage taper.
-    private func applyChargeTaper(rateW: Double, stateOfCharge: Int) -> Double {
-        guard stateOfCharge > 80 else { return rateW }
-        let taper = max(0.25, 1.0 - Double(stateOfCharge - 80) / 20.0 * 0.75)
+    /// Reduce effective charge rate near the charge target to approximate constant-voltage taper.
+    private func applyChargeTaper(rateW: Double, stateOfCharge: Int, targetSoc: Int) -> Double {
+        let clampedTarget = min(max(targetSoc, 1), 100)
+        let taperStart = max(65, clampedTarget - 15)
+        guard stateOfCharge > taperStart, clampedTarget > taperStart else { return rateW }
+        let span = Double(clampedTarget - taperStart)
+        let taper = max(0.25, 1.0 - Double(stateOfCharge - taperStart) / span * 0.75)
         return rateW * taper
     }
 }

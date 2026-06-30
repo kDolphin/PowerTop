@@ -89,8 +89,8 @@ struct DetailWindowView: View {
 
             if let timeText = data.estimatedTimeRemainingText {
                 DetailRow(label: data.estimatedTimeRemainingLabel, value: timeText)
-                if data.estimatedTimeIsComputed {
-                    Text(String(localized: "Estimated from remaining energy and smoothed power (macOS no longer provides this)."))
+                if let footnote = data.estimatedTimeFootnote {
+                    Text(footnote)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
@@ -219,16 +219,24 @@ struct DetailWindowView: View {
 
             if hasChargingCareDetails {
                 DetailSubheading(String(localized: "Charging & Care"))
+                if data.chargeLimitPercent < 100 {
+                    DetailRow(
+                        label: String(localized: "Charge Limit"),
+                        value: chargeLimitText
+                    )
+                }
                 if let minSoc = data.dailyMinSoc, let maxSoc = data.dailyMaxSoc {
                     DetailRow(
                         label: String(localized: "Optimized Charging Range"),
                         value: "\(minSoc)% – \(maxSoc)%"
                     )
                 }
-                DetailRow(
-                    label: String(localized: "Battery Temp"),
-                    value: data.batteryTemperatureC.map { String(format: "%.1f °C", $0) } ?? unavailableValue
-                )
+                if let temp = data.batteryTemperatureC {
+                    DetailRow(
+                        label: String(localized: "Battery Temp"),
+                        value: String(format: "%.1f °C", temp)
+                    )
+                }
             }
 
             if hasElectricalReadings {
@@ -531,7 +539,16 @@ struct DetailWindowView: View {
     }
 
     private var hasChargingCareDetails: Bool {
-        (data.dailyMinSoc != nil && data.dailyMaxSoc != nil) || data.batteryTemperatureC != nil
+        data.chargeLimitPercent < 100
+            || (data.dailyMinSoc != nil && data.dailyMaxSoc != nil)
+            || data.batteryTemperatureC != nil
+    }
+
+    private var chargeLimitText: String {
+        if let source = chargeLimitSourceLabel(data.chargeLimitSource) {
+            return "\(data.chargeLimitPercent)% (\(source))"
+        }
+        return "\(data.chargeLimitPercent)%"
     }
 
     private var cycleCountText: String {

@@ -5,7 +5,7 @@
 一个简洁轻量的菜单栏应用，实时显示你的 MacBook 正在消耗多少功率。
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.2-blue" />
+  <img src="https://img.shields.io/badge/version-1.3.3-blue" />
   <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue" />
   <img src="https://img.shields.io/badge/architecture-Apple%20Silicon-green" />
   <img src="https://img.shields.io/badge/license-MIT-orange" />
@@ -26,7 +26,7 @@ macOS 从来不会直接告诉你「现在系统正在消耗多少瓦」。Power
 - **即时功率数据** — 系统功耗、充电器输出、电池充电或放电功率。
 - **充电器负载情况** — 显示你的适配器功率以及当前使用率。
 - **电池概览** — 快速查看电量、健康度、温度和循环次数。
-- **预估剩余时间** — macOS 不再提供时，在 Popover 和详细参数中根据剩余电量与平滑功耗估算可用时间。
+- **预估剩余时间** — 在 Popover 和详细参数中估算可用时间；支持 macOS 充电上限（80/85/90/95%）及 AlDente 等第三方工具。
 - **详细参数窗口** — 自动识别电芯拓扑（如 3S2P）、串联组电压、并联节电流、充电状态与生命周期统计。
 
 数据实时更新，即使在插拔电源的瞬间也能保持准确可靠。
@@ -88,6 +88,11 @@ open build/PowerTop.app
 <a href="screenshot/detail-window.png" target="_blank"><img src="screenshot/detail-window.png" width="420" alt="PowerTop 详细参数"></a>
 
 ## 更新内容
+
+### v1.3.3
+
+- **充电上限感知** — 预计充满时间按实际充电目标计算（macOS 设置、AlDente 或优化充电暂停点），不再一律按 100% 估算
+- **更智能的上限检测** — AlDente Pro 开启「使用系统原生上限」时忽略旧配置；仅在优化充电暂停时才采用 `DailyMaxSoc`
 
 ### v1.3.2
 

@@ -64,6 +64,9 @@ struct PowerData {
     let batteryParallelCellCurrents: [BatteryParallelCellCurrent]?
     let dailyMinSoc: Int?
     let dailyMaxSoc: Int?
+    /// Effective charge target (1–100). 100 means physical full charge.
+    let chargeLimitPercent: Int
+    let chargeLimitSource: BatteryChargeLimitSource
 
     // Lifetime statistics
     let totalOperatingTimeMin: Int?
@@ -111,6 +114,7 @@ struct PowerData {
         cellVoltagesMV: [Int]?, stateOfCharge: Int?, qmaxMAH: [Int]?,
         batteryCellLayout: BatteryCellTelemetryLayout?, batteryParallelCellCurrents: [BatteryParallelCellCurrent]?,
         dailyMinSoc: Int?, dailyMaxSoc: Int?,
+        chargeLimitPercent: Int, chargeLimitSource: BatteryChargeLimitSource,
         totalOperatingTimeMin: Int?,
         lifetimeMaxTempC: Int?, lifetimeMinTempC: Int?, lifetimeAvgTempC: Int?,
         lifetimeMaxPackVoltageMV: Int?, lifetimeMinPackVoltageMV: Int?,
@@ -159,6 +163,8 @@ struct PowerData {
         self.batteryParallelCellCurrents = batteryParallelCellCurrents
         self.dailyMinSoc = dailyMinSoc
         self.dailyMaxSoc = dailyMaxSoc
+        self.chargeLimitPercent = min(max(chargeLimitPercent, 1), 100)
+        self.chargeLimitSource = chargeLimitSource
         self.totalOperatingTimeMin = totalOperatingTimeMin
         self.lifetimeMaxTempC = lifetimeMaxTempC
         self.lifetimeMinTempC = lifetimeMinTempC
@@ -348,21 +354,37 @@ struct PowerData {
         return Double(capacity) * Double(soc) / 100.0 * Double(voltage) / 1_000_000.0
     }
 
-    /// Energy still needed to reach full charge (Wh).
+    var isAtChargeLimit: Bool {
+        guard isBatteryCharging else { return false }
+        let currentSoc = stateOfCharge ?? batteryPercent
+        guard currentSoc >= chargeLimitPercent else { return false }
+        // SOC can read above the hold point while the pack is still accepting charge.
+        return batteryChargeRateW < 1.0
+    }
+
+    /// Energy still needed to reach the effective charge target (Wh).
     var energyToFullWh: Double? {
-        guard isBatteryCharging, !fullyCharged else { return nil }
-        if let remaining = remainingCapacityMAH,
-           let full = fullChargeCapacityMAH ?? rawMaxCapacityMAH ?? nominalChargeCapacityMAH,
-           full > remaining,
-           let voltage = batteryVoltageMV, voltage > 0 {
-            return Double(full - remaining) * Double(voltage) / 1_000_000.0
-        }
-        guard let remaining = remainingEnergyWh,
-              let full = fullChargeCapacityMAH ?? rawMaxCapacityMAH ?? nominalChargeCapacityMAH,
+        guard isBatteryCharging, !isAtChargeLimit else { return nil }
+        guard let full = fullChargeCapacityMAH ?? rawMaxCapacityMAH ?? nominalChargeCapacityMAH,
+              full > 0,
               let voltage = batteryVoltageMV, voltage > 0 else { return nil }
-        let fullWh = Double(full) * Double(voltage) / 1_000_000.0
-        let delta = fullWh - remaining
-        return delta > 0 ? delta : nil
+
+        let currentSoc = stateOfCharge ?? batteryPercent
+        guard currentSoc < chargeLimitPercent else { return nil }
+
+        let targetCapacityMAH = full * chargeLimitPercent / 100
+        if let remaining = remainingCapacityMAH, remaining > 0 {
+            let deltaMAH = targetCapacityMAH - remaining
+            if deltaMAH > 0 {
+                return Double(deltaMAH) * Double(voltage) / 1_000_000.0
+            }
+        }
+
+        let socDelta = chargeLimitPercent - currentSoc
+        if socDelta > 0 {
+            return Double(full) * Double(socDelta) / 100.0 * Double(voltage) / 1_000_000.0
+        }
+        return nil
     }
 
     private var dischargePowerForEstimateW: Double? {
@@ -395,8 +417,28 @@ struct PowerData {
         return Self.minutesFromEnergy(energyWh: energyWh, powerW: powerW)
     }
 
+    /// Scale macOS time-to-full (100%) down when a lower charge target applies.
+    private var scaledAvgTimeToFullForLimit: Int? {
+        guard let avg = validAvgTimeToFullMinutes else { return nil }
+        guard chargeLimitPercent < 100 else { return avg }
+        let currentSoc = stateOfCharge ?? batteryPercent
+        guard currentSoc < chargeLimitPercent else { return nil }
+        let socToFull = 100 - currentSoc
+        let socToTarget = chargeLimitPercent - currentSoc
+        guard socToFull > 0, socToTarget > 0 else { return nil }
+        return Self.cappedMinutes(avg * socToTarget / socToFull)
+    }
+
     var estimatedTimeRemainingMinutes: Int? {
-        if isBatteryCharging { return validAvgTimeToFullMinutes ?? computedTimeToFullMinutes }
+        if isBatteryCharging {
+            if isAtChargeLimit { return nil }
+            if chargeLimitPercent < 100 {
+                return computedTimeToFullMinutes
+                    ?? scaledAvgTimeToFullForLimit
+                    ?? validAvgTimeToFullMinutes
+            }
+            return validAvgTimeToFullMinutes ?? computedTimeToFullMinutes
+        }
         if !effectiveIsOnAC || isSupplementalDischarge {
             return validAvgTimeToEmptyMinutes ?? computedTimeToEmptyMinutes
         }
@@ -406,7 +448,11 @@ struct PowerData {
     /// True when macOS did not supply a valid AvgTimeTo* value and we used our own model.
     var estimatedTimeIsComputed: Bool {
         guard estimatedTimeRemainingMinutes != nil else { return false }
-        if isBatteryCharging { return validAvgTimeToFullMinutes == nil }
+        if isBatteryCharging {
+            if computedTimeToFullMinutes != nil { return true }
+            if chargeLimitPercent < 100, scaledAvgTimeToFullForLimit != nil { return true }
+            return validAvgTimeToFullMinutes == nil
+        }
         return validAvgTimeToEmptyMinutes == nil
     }
 
@@ -416,9 +462,25 @@ struct PowerData {
     }
 
     var estimatedTimeRemainingLabel: String {
-        isBatteryCharging
-            ? String(localized: "Est. Time to Full")
-            : String(localized: "Est. Time to Empty")
+        if isBatteryCharging {
+            if chargeLimitPercent < 100 {
+                return String(format: String(localized: "Est. Time to %d%%"), chargeLimitPercent)
+            }
+            return String(localized: "Est. Time to Full")
+        }
+        return String(localized: "Est. Time to Empty")
+    }
+
+    var estimatedTimeFootnote: String? {
+        guard isBatteryCharging, estimatedTimeIsComputed else { return nil }
+        if chargeLimitPercent < 100, let source = chargeLimitSourceLabel(chargeLimitSource) {
+            return String(
+                format: String(localized: "Estimated to %d%% charge limit (%@)."),
+                chargeLimitPercent,
+                source
+            )
+        }
+        return String(localized: "Estimated from remaining energy and smoothed power (macOS no longer provides this).")
     }
 
     private static func formatDuration(minutes: Int) -> String {
@@ -466,6 +528,7 @@ struct PowerData {
         cellVoltagesMV: nil, stateOfCharge: nil, qmaxMAH: nil,
         batteryCellLayout: nil, batteryParallelCellCurrents: nil,
         dailyMinSoc: nil, dailyMaxSoc: nil,
+        chargeLimitPercent: 100, chargeLimitSource: .none,
         totalOperatingTimeMin: nil,
         lifetimeMaxTempC: nil, lifetimeMinTempC: nil, lifetimeAvgTempC: nil,
         lifetimeMaxPackVoltageMV: nil, lifetimeMinPackVoltageMV: nil,
@@ -510,7 +573,9 @@ struct PowerData {
             stateOfCharge: stateOfCharge, qmaxMAH: qmaxMAH,
             batteryCellLayout: batteryCellLayout, batteryParallelCellCurrents: batteryParallelCellCurrents,
             dailyMinSoc: dailyMinSoc,
-            dailyMaxSoc: dailyMaxSoc, totalOperatingTimeMin: totalOperatingTimeMin,
+            dailyMaxSoc: dailyMaxSoc,
+            chargeLimitPercent: chargeLimitPercent, chargeLimitSource: chargeLimitSource,
+            totalOperatingTimeMin: totalOperatingTimeMin,
             lifetimeMaxTempC: lifetimeMaxTempC, lifetimeMinTempC: lifetimeMinTempC,
             lifetimeAvgTempC: lifetimeAvgTempC, lifetimeMaxPackVoltageMV: lifetimeMaxPackVoltageMV,
             lifetimeMinPackVoltageMV: lifetimeMinPackVoltageMV,

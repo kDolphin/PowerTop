@@ -331,6 +331,10 @@ final class PowerMonitor {
         let stateOfCharge = capacitySnapshot.stateOfCharge
         let dailyMinSoc = capacitySnapshot.dailyMinSoc
         let dailyMaxSoc = capacitySnapshot.dailyMaxSoc
+        let resolvedChargeLimit = resolveBatteryChargeLimit(
+            dailyMaxSoc: dailyMaxSoc,
+            notChargingReason: notChargingReason
+        )
         let remainingCapacity = capacitySnapshot.remainingCapacityMAH
         let fullChargeCapacityBD = capacitySnapshot.fullChargeCapacityMAH
         let avgTimeToEmpty = batteryData.flatMap { extractInt(from: $0, key: "AvgTimeToEmpty") }
@@ -381,6 +385,8 @@ final class PowerMonitor {
                 qmaxMAH: qmax, batteryCellLayout: batteryCellLayout,
                 batteryParallelCellCurrents: batteryParallelCellCurrents,
                 dailyMinSoc: dailyMinSoc, dailyMaxSoc: dailyMaxSoc,
+                chargeLimitPercent: resolvedChargeLimit.percent,
+                chargeLimitSource: resolvedChargeLimit.source,
                 totalOperatingTimeMin: totalOpTime,
                 lifetimeMaxTempC: ltMaxTemp, lifetimeMinTempC: ltMinTemp,
                 lifetimeAvgTempC: ltAvgTemp,
