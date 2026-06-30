@@ -74,12 +74,12 @@ open build/PowerTop.app
 
 ### Popover
 
-| **AC Powered** | **Battery Discharging** (menu bar power enabled) |
-|----------------|--------------------------------------------------|
+| **AC Powered** | **Battery Discharging** |
+|----------------|--------------------------|
 | <a href="screenshot/popover-ac-powered.png" target="_blank"><img src="screenshot/popover-ac-powered.png" width="260" alt="AC Powered"></a> | <a href="screenshot/popover-battery-discharging.png" target="_blank"><img src="screenshot/popover-battery-discharging.png" width="260" alt="Battery Discharging"></a> |
 
-| **AC Charging** | **AC + Battery Supplement** (battery assisting under high load) |
-|-----------------|-----------------------------------------------------------------|
+| **AC Charging** | **AC + Battery Supplement** |
+|-----------------|------------------------------|
 | <a href="screenshot/popover-ac-charging.png" target="_blank"><img src="screenshot/popover-ac-charging.png" width="260" alt="AC Charging"></a> | <a href="screenshot/popover-ac-supplement.png" target="_blank"><img src="screenshot/popover-ac-supplement.png" width="260" alt="AC + Battery Supplement"></a> |
 
 ### Detail Window
