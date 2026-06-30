@@ -5,6 +5,20 @@ enum PowerDataSource {
     case legacy
 }
 
+/// How macOS exposes per-cell battery telemetry on this machine.
+enum BatteryCellTelemetryLayout: Equatable {
+    /// Pack-level `CellVoltage` / `Qmax` arrays — one entry per physical cell.
+    case perCellArrays
+    /// Bank/cell nodes — voltage and Qmax per series group, currents per parallel cell.
+    case seriesParallel(seriesCount: Int, parallelCount: Int)
+}
+
+struct BatteryParallelCellCurrent: Equatable {
+    let bankID: Int
+    let cellID: Int
+    let currentMA: Int
+}
+
 struct PowerData {
     // Core power metrics
     let systemPowerW: Double          // SystemLoad / 1000 — actual system consumption
@@ -45,6 +59,8 @@ struct PowerData {
     let cellVoltagesMV: [Int]?
     let stateOfCharge: Int?
     let qmaxMAH: [Int]?
+    let batteryCellLayout: BatteryCellTelemetryLayout?
+    let batteryParallelCellCurrents: [BatteryParallelCellCurrent]?
     let dailyMinSoc: Int?
     let dailyMaxSoc: Int?
 
@@ -89,6 +105,7 @@ struct PowerData {
         nominalChargeCapacityMAH: Int?, designCycleCount: Int?,
         chargingVoltageMV: Int?, chargingCurrentMA: Int?, notChargingReason: Int?, vacVoltageLimit: Int?,
         cellVoltagesMV: [Int]?, stateOfCharge: Int?, qmaxMAH: [Int]?,
+        batteryCellLayout: BatteryCellTelemetryLayout?, batteryParallelCellCurrents: [BatteryParallelCellCurrent]?,
         dailyMinSoc: Int?, dailyMaxSoc: Int?,
         totalOperatingTimeMin: Int?,
         lifetimeMaxTempC: Int?, lifetimeMinTempC: Int?, lifetimeAvgTempC: Int?,
@@ -133,6 +150,8 @@ struct PowerData {
         self.cellVoltagesMV = cellVoltagesMV
         self.stateOfCharge = stateOfCharge
         self.qmaxMAH = qmaxMAH
+        self.batteryCellLayout = batteryCellLayout
+        self.batteryParallelCellCurrents = batteryParallelCellCurrents
         self.dailyMinSoc = dailyMinSoc
         self.dailyMaxSoc = dailyMaxSoc
         self.totalOperatingTimeMin = totalOperatingTimeMin
@@ -372,6 +391,7 @@ struct PowerData {
         chargingVoltageMV: nil, chargingCurrentMA: nil,
         notChargingReason: nil, vacVoltageLimit: nil,
         cellVoltagesMV: nil, stateOfCharge: nil, qmaxMAH: nil,
+        batteryCellLayout: nil, batteryParallelCellCurrents: nil,
         dailyMinSoc: nil, dailyMaxSoc: nil,
         totalOperatingTimeMin: nil,
         lifetimeMaxTempC: nil, lifetimeMinTempC: nil, lifetimeAvgTempC: nil,
@@ -401,7 +421,9 @@ struct PowerData {
             designCycleCount: designCycleCount, chargingVoltageMV: chargingVoltageMV,
             chargingCurrentMA: chargingCurrentMA, notChargingReason: notChargingReason,
             vacVoltageLimit: vacVoltageLimit, cellVoltagesMV: cellVoltagesMV,
-            stateOfCharge: stateOfCharge, qmaxMAH: qmaxMAH, dailyMinSoc: dailyMinSoc,
+            stateOfCharge: stateOfCharge, qmaxMAH: qmaxMAH,
+            batteryCellLayout: batteryCellLayout, batteryParallelCellCurrents: batteryParallelCellCurrents,
+            dailyMinSoc: dailyMinSoc,
             dailyMaxSoc: dailyMaxSoc, totalOperatingTimeMin: totalOperatingTimeMin,
             lifetimeMaxTempC: lifetimeMaxTempC, lifetimeMinTempC: lifetimeMinTempC,
             lifetimeAvgTempC: lifetimeAvgTempC, lifetimeMaxPackVoltageMV: lifetimeMaxPackVoltageMV,

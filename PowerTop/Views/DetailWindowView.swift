@@ -270,16 +270,48 @@ struct DetailWindowView: View {
 
     private var cellDataSection: some View {
         DetailSection(title: String(localized: "Cell Data"), icon: "cylinder.split.1.raised", color: .cyan) {
-            if let cells = data.cellVoltagesMV {
-                if let balance = cellBalanceSummary(cells) {
-                    DetailRow(label: String(localized: "Cell Balance"), value: balance)
-                }
+            if let topology = cellTopologyDescription {
+                Text(topology)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .padding(.bottom, 2)
             }
-            ForEach(Array(cellDisplayEntries.enumerated()), id: \.offset) { idx, entry in
-                DetailRow(
-                    label: String(format: String(localized: "Cell %d"), idx + 1),
-                    value: cellSummary(voltageMV: entry.voltageMV, qmaxMAH: entry.qmaxMAH)
-                )
+
+            if let cells = data.cellVoltagesMV, let balance = cellBalanceSummary(cells) {
+                DetailRow(label: String(localized: "Cell Balance"), value: balance)
+            }
+
+            if usesSeriesParallelLayout {
+                DetailSubheading(String(localized: "Series Groups"))
+                ForEach(Array(seriesGroupEntries.enumerated()), id: \.offset) { idx, entry in
+                    DetailRow(
+                        label: String(format: String(localized: "Series Group %d"), idx + 1),
+                        value: cellSummary(voltageMV: entry.voltageMV, qmaxMAH: entry.qmaxMAH)
+                    )
+                }
+                if allSeriesGroupsIdentical {
+                    Text(String(localized: "Series group voltage and Qmax are reported identically by macOS on this machine."))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 2)
+                }
+
+                if let currents = data.batteryParallelCellCurrents, !currents.isEmpty {
+                    DetailSubheading(String(localized: "Parallel Cell Currents"))
+                    ForEach(Array(currents.enumerated()), id: \.offset) { _, cell in
+                        DetailRow(
+                            label: parallelCellLabel(bankID: cell.bankID, cellID: cell.cellID),
+                            value: "\(cell.currentMA) mA"
+                        )
+                    }
+                }
+            } else {
+                ForEach(Array(cellDisplayEntries.enumerated()), id: \.offset) { idx, entry in
+                    DetailRow(
+                        label: String(format: String(localized: "Cell %d"), idx + 1),
+                        value: cellSummary(voltageMV: entry.voltageMV, qmaxMAH: entry.qmaxMAH)
+                    )
+                }
             }
         }
     }
@@ -383,6 +415,50 @@ struct DetailWindowView: View {
 
     private var hasCellData: Bool {
         !cellDisplayEntries.isEmpty
+            || !(data.batteryParallelCellCurrents?.isEmpty ?? true)
+    }
+
+    private var usesSeriesParallelLayout: Bool {
+        if case .seriesParallel = data.batteryCellLayout { return true }
+        return false
+    }
+
+    private var cellTopologyDescription: String? {
+        switch data.batteryCellLayout {
+        case .seriesParallel(let seriesCount, let parallelCount):
+            return String(
+                format: String(localized: "Battery topology: %dS%dP (%d cells)"),
+                seriesCount,
+                parallelCount,
+                seriesCount * parallelCount
+            )
+        case .perCellArrays:
+            if let count = data.cellVoltagesMV?.count, count > 0 {
+                return String(format: String(localized: "Battery topology: %d cells"), count)
+            }
+            return nil
+        case nil:
+            return nil
+        }
+    }
+
+    private var seriesGroupEntries: [(voltageMV: Int?, qmaxMAH: Int?)] {
+        cellDisplayEntries
+    }
+
+    private var allSeriesGroupsIdentical: Bool {
+        guard usesSeriesParallelLayout, let voltages = data.cellVoltagesMV, voltages.count > 1 else {
+            return false
+        }
+        guard let first = voltages.first else { return false }
+        let voltagesMatch = voltages.allSatisfy { $0 == first }
+        let qmaxMatch: Bool = {
+            guard let qmax = data.qmaxMAH, qmax.count == voltages.count, let firstQ = qmax.first else {
+                return false
+            }
+            return qmax.allSatisfy { $0 == firstQ }
+        }()
+        return voltagesMatch && qmaxMatch
     }
 
     private var cellDisplayEntries: [(voltageMV: Int?, qmaxMAH: Int?)] {
@@ -396,6 +472,14 @@ struct DetailWindowView: View {
                 qmaxMAH: index < capacities.count ? capacities[index] : nil
             )
         }
+    }
+
+    private func parallelCellLabel(bankID: Int, cellID: Int) -> String {
+        String(
+            format: String(localized: "Series Group %d · Cell %d"),
+            bankID + 1,
+            cellID + 1
+        )
     }
 
     private func cellSummary(voltageMV: Int?, qmaxMAH: Int?) -> String {

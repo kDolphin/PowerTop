@@ -319,9 +319,11 @@ final class PowerMonitor {
 
         // BatteryData (deep)
         let batteryData = extractDict(from: props, key: "BatteryData")
-        let cellTelemetry = readBatteryCellArrays(packBatteryData: batteryData)
-        let cellVoltages = cellTelemetry?.voltages
-        let qmax = cellTelemetry?.qmax
+        let cellTelemetry = readBatteryCellTelemetry(packBatteryData: batteryData)
+        let cellVoltages = cellTelemetry?.voltagesMV
+        let qmax = cellTelemetry?.qmaxMAH
+        let batteryCellLayout = cellTelemetry?.layout
+        let batteryParallelCellCurrents = cellTelemetry?.parallelCellCurrents
         let stateOfCharge = batteryData.flatMap { extractInt(from: $0, key: "StateOfCharge") }
         let dailyMinSoc = batteryData.flatMap { extractInt(from: $0, key: "DailyMinSoc") }
         let dailyMaxSoc = batteryData.flatMap { extractInt(from: $0, key: "DailyMaxSoc") }
@@ -373,7 +375,9 @@ final class PowerMonitor {
                 chargingVoltageMV: chargingVoltage, chargingCurrentMA: chargingCurrent,
                 notChargingReason: notChargingReason, vacVoltageLimit: vacVoltageLimit,
                 cellVoltagesMV: cellVoltages, stateOfCharge: stateOfCharge,
-                qmaxMAH: qmax, dailyMinSoc: dailyMinSoc, dailyMaxSoc: dailyMaxSoc,
+                qmaxMAH: qmax, batteryCellLayout: batteryCellLayout,
+                batteryParallelCellCurrents: batteryParallelCellCurrents,
+                dailyMinSoc: dailyMinSoc, dailyMaxSoc: dailyMaxSoc,
                 totalOperatingTimeMin: totalOpTime,
                 lifetimeMaxTempC: ltMaxTemp, lifetimeMinTempC: ltMinTemp,
                 lifetimeAvgTempC: ltAvgTemp,

@@ -93,6 +93,13 @@
 "Cell Data" = "电芯数据";
 "Cell %d" = "电芯 %d";
 "—" = "—";
+"Battery topology: %dS%dP (%d cells)" = "电芯拓扑：%d 串 × %d 并（共 %d 节）";
+"Battery topology: %d cells" = "电芯拓扑：共 %d 节";
+"Series Groups" = "串联组";
+"Series Group %d" = "串联组 %d";
+"Parallel Cell Currents" = "并联节电流";
+"Series Group %d · Cell %d" = "串联组 %d · 并联节 %d";
+"Series group voltage and Qmax are reported identically by macOS on this machine." = "macOS 在此机型上对各串联组报告的电压与 Qmax 相同。";
 "Cell Balance" = "电芯均衡";
 "%d mV spread — %@" = "压差 %d mV — %@";
 "Fair" = "一般";
