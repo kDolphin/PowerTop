@@ -72,9 +72,27 @@ open build/PowerTop.app
 
 ## Screenshots
 
-*Popover with power flow diagram and live metrics*
+### Popover
 
-*Detail window showing battery health and more information*
+**AC Powered**
+
+![AC Powered](screenshot/popover-ac-powered.png)
+
+**Battery Discharging** (menu bar power enabled)
+
+![Battery Discharging](screenshot/popover-battery-discharging.png)
+
+**AC Charging**
+
+![AC Charging](screenshot/popover-ac-charging.png)
+
+**AC + Battery Supplement** (battery assisting under high load)
+
+![AC + Battery Supplement](screenshot/popover-ac-supplement.png)
+
+### Detail Window
+
+![PowerTop Details](screenshot/detail-window.png)
 
 ## What's New
 

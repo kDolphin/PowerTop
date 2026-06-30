@@ -72,9 +72,27 @@ open build/PowerTop.app
 
 ## 截图展示
 
-*弹出窗口：功率流向图与实时数据*
+### 弹出窗口
 
-*详细参数窗口：电池健康与更多信息*
+**AC 供电**
+
+![AC 供电](screenshot/popover-ac-powered.png)
+
+**电池放电**（已开启菜单栏功率显示）
+
+![电池放电](screenshot/popover-battery-discharging.png)
+
+**AC 充电中**
+
+![AC 充电中](screenshot/popover-ac-charging.png)
+
+**AC + 电池补充供电**（高负载下电池协助）
+
+![AC + 电池补充供电](screenshot/popover-ac-supplement.png)
+
+### 详细参数窗口
+
+![PowerTop 详细参数](screenshot/detail-window.png)
 
 ## 更新内容
 
