@@ -33,6 +33,7 @@ struct PopoverView: View {
             data.notChargingReasonDescription != nil ? "reason" : "noreason",
             data.batteryHealthPercent != nil ? "health" : "nohealth",
             data.effectiveIsOnAC && data.acAdapterWattage > 0 ? "spec" : "nospec",
+            data.estimatedTimeRemainingText != nil ? "time" : "notime",
         ].joined(separator: "-")
     }
 
@@ -352,6 +353,15 @@ struct PopoverView: View {
                     .tint(data.batteryPercent <= 20 ? .red : (data.batteryPercent <= 50 ? .orange : .green))
                 Text("\(data.batteryPercent)%")
                     .font(.system(size: 12, weight: .medium, design: .rounded)).monospacedDigit()
+            }
+
+            if let timeText = data.estimatedTimeRemainingText {
+                PowerRowView(
+                    icon: "clock",
+                    iconColor: data.isBatteryCharging ? .blue : .orange,
+                    label: data.estimatedTimeRemainingLabel,
+                    value: timeText
+                )
             }
 
             if let health = data.batteryHealthPercent {
