@@ -71,10 +71,18 @@
 
 // Detail - Battery Health
 "Battery Health" = "Battery Health";
+"At a Glance" = "At a Glance";
+"Capacity" = "Capacity";
+"Charging & Care" = "Charging & Care";
+"Live Readings" = "Live Readings";
 "Capacity Details" = "Capacity Details";
 "Electrical Readings" = "Electrical Readings";
+"—" = "—";
 "Status & Alerts" = "Status & Alerts";
 "Design Capacity" = "Design Capacity";
+"Current Full Charge" = "Current Full Charge";
+"Calibrated Full Charge" = "Calibrated Full Charge";
+"Remaining Charge" = "Remaining Charge";
 "Full Charge Capacity" = "Full Charge Capacity";
 "Nominal Full Charge Capacity" = "Nominal Full Charge Capacity";
 "design life" = "design life";

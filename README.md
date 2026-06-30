@@ -5,7 +5,7 @@
 A clean, lightweight menu bar app that shows you exactly how much power your MacBook is using.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.1-blue" />
+  <img src="https://img.shields.io/badge/version-1.3.2-blue" />
   <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue" />
   <img src="https://img.shields.io/badge/architecture-Apple%20Silicon-green" />
   <img src="https://img.shields.io/badge/license-MIT-orange" />
@@ -88,6 +88,11 @@ open build/PowerTop.app
 <a href="screenshot/detail-window.png" target="_blank"><img src="screenshot/detail-window.png" width="420" alt="PowerTop Details"></a>
 
 ## What's New
+
+### v1.3.2
+
+- **Battery health fix** — Reads design capacity, full charge, and health % from `BatteryData` on Apple Silicon; reorganized detail view with aligned overview bars and clearer capacity labels
+- **Compact detail window** — Fixed 460pt width for a tighter layout
 
 ### v1.3.1
 

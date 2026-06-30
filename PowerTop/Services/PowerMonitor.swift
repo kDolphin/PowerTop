@@ -287,7 +287,6 @@ final class PowerMonitor {
         let batteryPercent = maxCapacity > 0 ? (currentCapacity * 100 / maxCapacity) : 0
         let voltage = extractInt(from: props, key: "Voltage")
         let amperage = extractInt(from: props, key: "Amperage")
-        let temperature = extractInt(from: props, key: "Temperature")
         let cycleCount = extractInt(from: props, key: "CycleCount")
 
         // Device info
@@ -298,15 +297,15 @@ final class PowerMonitor {
         let permanentFailure = extractInt(from: props, key: "PermanentFailureStatus")
         let cellDisconnectCount = extractInt(from: props, key: "BatteryCellDisconnectCount")
 
-        // Battery health
-        let designCapacity = extractInt(from: props, key: "DesignCapacity")
-        let rawMaxCapacity = extractInt(from: props, key: "AppleRawMaxCapacity")
-        let nominalChargeCapacity = extractInt(from: props, key: "NominalChargeCapacity")
+        // Battery health — DesignCapacity / FCC / Nominal often live in BatteryData on Apple Silicon.
+        let capacitySnapshot = readBatteryCapacitySnapshot(from: props)
+        let designCapacity = capacitySnapshot.designCapacityMAH
+        let rawMaxCapacity = capacitySnapshot.rawMaxCapacityMAH
+        let nominalChargeCapacity = capacitySnapshot.nominalChargeCapacityMAH
+        let batteryHealthPercent = capacitySnapshot.healthPercent
+        let temperature = capacitySnapshot.temperatureCentidegrees
         let designCycleCount = extractInt(from: props, key: "DesignCycleCount9C")
-        let batteryHealthPercent: Int? = {
-            guard let design = designCapacity, let raw = rawMaxCapacity, design > 0 else { return nil }
-            return min(100, raw * 100 / design)
-        }()
+            ?? extractInt(from: props, key: "DesignCycleCount70")
 
         // Adapter details
         let adapterDetails = extractDict(from: props, key: "AdapterDetails")
@@ -329,12 +328,11 @@ final class PowerMonitor {
         let qmax = cellTelemetry?.qmaxMAH
         let batteryCellLayout = cellTelemetry?.layout
         let batteryParallelCellCurrents = cellTelemetry?.parallelCellCurrents
-        let stateOfCharge = batteryData.flatMap { extractInt(from: $0, key: "StateOfCharge") }
-        let dailyMinSoc = batteryData.flatMap { extractInt(from: $0, key: "DailyMinSoc") }
-        let dailyMaxSoc = batteryData.flatMap { extractInt(from: $0, key: "DailyMaxSoc") }
-
-        let remainingCapacity = batteryData.flatMap { extractInt(from: $0, key: "RemainingCapacity") }
-        let fullChargeCapacityBD = batteryData.flatMap { extractInt(from: $0, key: "FullChargeCapacity") }
+        let stateOfCharge = capacitySnapshot.stateOfCharge
+        let dailyMinSoc = capacitySnapshot.dailyMinSoc
+        let dailyMaxSoc = capacitySnapshot.dailyMaxSoc
+        let remainingCapacity = capacitySnapshot.remainingCapacityMAH
+        let fullChargeCapacityBD = capacitySnapshot.fullChargeCapacityMAH
         let avgTimeToEmpty = batteryData.flatMap { extractInt(from: $0, key: "AvgTimeToEmpty") }
             ?? extractInt(from: props, key: "AvgTimeToEmpty")
         let avgTimeToFull = batteryData.flatMap { extractInt(from: $0, key: "AvgTimeToFull") }
@@ -369,7 +367,7 @@ final class PowerMonitor {
                 wallPowerW: wall, adapterEfficiencyLossW: loss,
                 systemVoltageMV: sv, systemCurrentMA: sc,
                 batteryVoltageMV: voltage, batteryAmperageMA: amperage,
-                batteryTemperatureC: temperature.map { Double($0) / 100.0 },
+                batteryTemperatureC: temperature.map { TemperatureUnits.instantCelsius(fromCentidegrees: $0) },
                 cycleCount: cycleCount, adapterDescription: adapterDescription,
                 dataSource: ds, timestamp: Date(),
                 connectionPhase: .onBattery,

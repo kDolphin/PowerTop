@@ -47,9 +47,9 @@ struct PowerTopApp: App {
 
         Window(String(localized: "PowerTop Details"), id: "detail") {
             DetailWindowView(monitor: monitor)
-                .frame(minWidth: 520, minHeight: 500)
         }
         .windowStyle(.titleBar)
-        .defaultSize(width: 560, height: 640)
+        .defaultSize(width: DetailWindowView.preferredWidth, height: 640)
+        .windowResizability(.contentSize)
     }
 }

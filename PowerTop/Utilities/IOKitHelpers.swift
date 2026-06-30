@@ -89,6 +89,52 @@ func parseBatteryManufactureDate(from props: [String: Any]) -> String? {
     return nil
 }
 
+/// Capacity and health fields from `AppleSmartBattery`; many values live under `BatteryData` on Apple Silicon.
+struct BatteryCapacitySnapshot: Equatable {
+    let designCapacityMAH: Int?
+    let fullChargeCapacityMAH: Int?
+    let rawMaxCapacityMAH: Int?
+    let nominalChargeCapacityMAH: Int?
+    let remainingCapacityMAH: Int?
+    let stateOfCharge: Int?
+    let dailyMinSoc: Int?
+    let dailyMaxSoc: Int?
+    let temperatureCentidegrees: Int?
+
+    var healthPercent: Int? {
+        guard let design = designCapacityMAH, design > 0 else { return nil }
+        let current = rawMaxCapacityMAH ?? fullChargeCapacityMAH ?? nominalChargeCapacityMAH
+        guard let current, current > 0 else { return nil }
+        return min(100, current * 100 / design)
+    }
+}
+
+func readBatteryCapacitySnapshot(from props: [String: Any]) -> BatteryCapacitySnapshot {
+    let batteryData = extractDict(from: props, key: "BatteryData")
+
+    func packOrBatteryData(_ key: String) -> Int? {
+        extractInt(from: props, key: key)
+            ?? batteryData.flatMap { extractInt(from: $0, key: key) }
+    }
+
+    return BatteryCapacitySnapshot(
+        designCapacityMAH: packOrBatteryData("DesignCapacity"),
+        fullChargeCapacityMAH: batteryData.flatMap { extractInt(from: $0, key: "FullChargeCapacity") }
+            ?? extractInt(from: props, key: "FullChargeCapacity"),
+        rawMaxCapacityMAH: packOrBatteryData("AppleRawMaxCapacity"),
+        nominalChargeCapacityMAH: packOrBatteryData("NominalChargeCapacity"),
+        remainingCapacityMAH: batteryData.flatMap { extractInt(from: $0, key: "RemainingCapacity") }
+            ?? extractInt(from: props, key: "RemainingCapacity"),
+        stateOfCharge: batteryData.flatMap { extractInt(from: $0, key: "StateOfCharge") }
+            ?? extractInt(from: props, key: "StateOfCharge"),
+        dailyMinSoc: batteryData.flatMap { extractInt(from: $0, key: "DailyMinSoc") }
+            ?? extractInt(from: props, key: "DailyMinSoc"),
+        dailyMaxSoc: batteryData.flatMap { extractInt(from: $0, key: "DailyMaxSoc") }
+            ?? extractInt(from: props, key: "DailyMaxSoc"),
+        temperatureCentidegrees: packOrBatteryData("Temperature")
+    )
+}
+
 /// macOS uses 65535 as an invalid sentinel for battery time estimates.
 func isValidBatteryTimeMinutes(_ minutes: Int?) -> Int? {
     guard let minutes, minutes > 0, minutes < 65_535 else { return nil }

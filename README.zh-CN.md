@@ -5,7 +5,7 @@
 一个简洁轻量的菜单栏应用，实时显示你的 MacBook 正在消耗多少功率。
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.1-blue" />
+  <img src="https://img.shields.io/badge/version-1.3.2-blue" />
   <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue" />
   <img src="https://img.shields.io/badge/architecture-Apple%20Silicon-green" />
   <img src="https://img.shields.io/badge/license-MIT-orange" />
@@ -88,6 +88,11 @@ open build/PowerTop.app
 <a href="screenshot/detail-window.png" target="_blank"><img src="screenshot/detail-window.png" width="420" alt="PowerTop 详细参数"></a>
 
 ## 更新内容
+
+### v1.3.2
+
+- **电池健康修复** — 从 `BatteryData` 正确读取设计容量、满充电量与健康度；详细参数概览进度条对齐，容量命名更清晰
+- **紧凑详细窗口** — 固定 460pt 宽度
 
 ### v1.3.1
 

@@ -71,10 +71,18 @@
 
 // Detail - Battery Health
 "Battery Health" = "电池健康";
+"At a Glance" = "概览";
+"Capacity" = "容量";
+"Charging & Care" = "充电与保养";
+"Live Readings" = "实时读数";
 "Capacity Details" = "容量详情";
 "Electrical Readings" = "电气读数";
+"—" = "—";
 "Status & Alerts" = "状态与告警";
 "Design Capacity" = "设计容量";
+"Current Full Charge" = "当前满充电量";
+"Calibrated Full Charge" = "系统标定满电量";
+"Remaining Charge" = "剩余电量";
 "Full Charge Capacity" = "当前满充容量";
 "Nominal Full Charge Capacity" = "标称满充容量";
 "design life" = "设计寿命";
