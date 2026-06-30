@@ -84,6 +84,10 @@ struct DetailWindowView: View {
                 )
             }
 
+            if let timeText = data.estimatedTimeRemainingText {
+                DetailRow(label: data.estimatedTimeRemainingLabel, value: timeText)
+            }
+
             if data.effectiveIsOnAC && !data.isConnectingAC {
                 DetailSubheading(String(localized: "Charging Status"))
                 DetailRow(
@@ -113,8 +117,14 @@ struct DetailWindowView: View {
                 }
             }
 
-            if data.wallPowerW != nil || data.adapterEfficiencyLossW != nil {
+            if data.wallPowerW != nil || data.adapterEfficiencyLossW != nil || data.averageSystemPowerW != nil {
                 DetailSubheading(String(localized: "Historical Averages"))
+                if let avg = data.averageSystemPowerW, avg > 0.5 {
+                    DetailRow(
+                        label: String(localized: "Average System Power"),
+                        value: String(format: "%.1f W", avg)
+                    )
+                }
                 if let wall = data.wallPowerW {
                     DetailRow(
                         label: String(localized: "Avg Wall Outlet Power"),
@@ -185,6 +195,9 @@ struct DetailWindowView: View {
                     value: String(format: "%.1f °C", temp)
                 )
             }
+            if let mfg = data.batteryManufactureDate {
+                DetailRow(label: String(localized: "Manufacture Date"), value: mfg)
+            }
             if let minSoc = data.dailyMinSoc, let maxSoc = data.dailyMaxSoc {
                 DetailRow(
                     label: String(localized: "Optimized Charging Range"),
@@ -194,6 +207,9 @@ struct DetailWindowView: View {
 
             if hasCapacityDetails {
                 DetailSubheading(String(localized: "Capacity Details"))
+                if let remaining = data.remainingCapacityMAH {
+                    DetailRow(label: String(localized: "Remaining Capacity"), value: "\(remaining) mAh")
+                }
                 if let design = data.designCapacityMAH {
                     DetailRow(label: String(localized: "Design Capacity"), value: "\(design) mAh")
                 }
@@ -394,7 +410,8 @@ struct DetailWindowView: View {
     }
 
     private var hasCapacityDetails: Bool {
-        data.designCapacityMAH != nil
+        data.remainingCapacityMAH != nil
+            || data.designCapacityMAH != nil
             || data.rawMaxCapacityMAH != nil
             || data.nominalChargeCapacityMAH != nil
     }

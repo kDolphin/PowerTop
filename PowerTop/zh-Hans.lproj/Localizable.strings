@@ -61,6 +61,12 @@
 "Charger Output Voltage" = "充电器输出电压";
 "Charger Output Current" = "充电器输出电流";
 "Estimation Mode — telemetry unavailable" = "估算模式 — 遥测数据不可用";
+"Remaining Capacity" = "剩余容量";
+"Est. Time to Empty" = "预计剩余时间";
+"Est. Time to Full" = "预计充满时间";
+"Average System Power" = "平均系统功耗";
+"Manufacture Date" = "制造日期";
+"Manufacture Week Format" = "%d 年第 %02d 周";
 
 // Detail - Battery Health
 "Battery Health" = "电池健康";

@@ -315,6 +315,8 @@ final class PowerMonitor {
         let notChargingReason = chargerData.flatMap { extractInt(from: $0, key: "NotChargingReason") }
         let vacVoltageLimit = chargerData.flatMap { extractInt(from: $0, key: "VacVoltageLimit") }
 
+        var avgSysPowerW: Double?
+
         // BatteryData (deep)
         let batteryData = extractDict(from: props, key: "BatteryData")
         let cellVoltages = batteryData.flatMap { extractIntArray(from: $0, key: "CellVoltage") }
@@ -322,6 +324,14 @@ final class PowerMonitor {
         let qmax = batteryData.flatMap { extractIntArray(from: $0, key: "Qmax") }
         let dailyMinSoc = batteryData.flatMap { extractInt(from: $0, key: "DailyMinSoc") }
         let dailyMaxSoc = batteryData.flatMap { extractInt(from: $0, key: "DailyMaxSoc") }
+
+        let remainingCapacity = batteryData.flatMap { extractInt(from: $0, key: "RemainingCapacity") }
+        let fullChargeCapacityBD = batteryData.flatMap { extractInt(from: $0, key: "FullChargeCapacity") }
+        let avgTimeToEmpty = batteryData.flatMap { extractInt(from: $0, key: "AvgTimeToEmpty") }
+            ?? extractInt(from: props, key: "AvgTimeToEmpty")
+        let avgTimeToFull = batteryData.flatMap { extractInt(from: $0, key: "AvgTimeToFull") }
+            ?? extractInt(from: props, key: "AvgTimeToFull")
+        let manufactureDateStr = parseBatteryManufactureDate(from: props)
 
         // LifetimeData
         let lifetimeData = batteryData.flatMap { extractDict(from: $0, key: "LifetimeData") }
@@ -374,7 +384,10 @@ final class PowerMonitor {
                 instantAmperageMA: instantAmperage,
                 atCriticalLevel: atCriticalLevel,
                 permanentFailureStatus: permanentFailure,
-                batteryCellDisconnectCount: cellDisconnectCount
+                batteryCellDisconnectCount: cellDisconnectCount,
+                avgTimeToEmptyMinutes: avgTimeToEmpty, avgTimeToFullMinutes: avgTimeToFull,
+                remainingCapacityMAH: remainingCapacity, fullChargeCapacityMAH: fullChargeCapacityBD,
+                averageSystemPowerW: avgSysPowerW, batteryManufactureDate: manufactureDateStr
             )
         }
 
@@ -392,6 +405,11 @@ final class PowerMonitor {
             let adapterLoss = extractInt(from: telem, key: "AdapterEfficiencyLoss")
             let sysVoltage = extractInt(from: telem, key: "SystemVoltageIn")
             let sysCurrent = extractInt(from: telem, key: "SystemCurrentIn")
+
+            // Average system power from accumulators
+            let accumLoad = extractInt(from: telem, key: "AccumulatedSystemLoad") ?? 0
+            let loadCount = extractInt(from: telem, key: "SystemLoadAccumulatorCount") ?? 0
+            avgSysPowerW = loadCount > 0 ? Double(accumLoad) / Double(loadCount) / 1000.0 : nil
 
             let reportedACInputW = Double(systemPowerIn) / 1000.0
             // Ignore stale SystemPowerIn after unplug — ExternalConnected is authoritative.

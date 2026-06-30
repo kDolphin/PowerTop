@@ -66,6 +66,14 @@ struct PowerData {
     let permanentFailureStatus: Int?
     let batteryCellDisconnectCount: Int?
 
+    // Battery timing and capacity (from IOKit; display via computed helpers below)
+    let avgTimeToEmptyMinutes: Int?
+    let avgTimeToFullMinutes: Int?
+    let remainingCapacityMAH: Int?
+    let fullChargeCapacityMAH: Int?
+    let averageSystemPowerW: Double?
+    let batteryManufactureDate: String?
+
     // Full memberwise init (package-internal; centralizes all assignments to avoid drift across call sites)
     init(
         systemPowerW: Double, batteryPowerW: Double, acInputW: Double,
@@ -88,7 +96,10 @@ struct PowerData {
         lifetimeMaxChargeCurrentMA: Int?, lifetimeMaxDischargeCurrentMA: Int?,
         batterySerial: String?, deviceName: String?,
         instantAmperageMA: Int?, atCriticalLevel: Bool?,
-        permanentFailureStatus: Int?, batteryCellDisconnectCount: Int?
+        permanentFailureStatus: Int?, batteryCellDisconnectCount: Int?,
+        avgTimeToEmptyMinutes: Int?, avgTimeToFullMinutes: Int?,
+        remainingCapacityMAH: Int?, fullChargeCapacityMAH: Int?,
+        averageSystemPowerW: Double?, batteryManufactureDate: String?
     ) {
         self.systemPowerW = systemPowerW
         self.batteryPowerW = batteryPowerW
@@ -138,6 +149,12 @@ struct PowerData {
         self.atCriticalLevel = atCriticalLevel
         self.permanentFailureStatus = permanentFailureStatus
         self.batteryCellDisconnectCount = batteryCellDisconnectCount
+        self.avgTimeToEmptyMinutes = avgTimeToEmptyMinutes
+        self.avgTimeToFullMinutes = avgTimeToFullMinutes
+        self.remainingCapacityMAH = remainingCapacityMAH
+        self.fullChargeCapacityMAH = fullChargeCapacityMAH
+        self.averageSystemPowerW = averageSystemPowerW
+        self.batteryManufactureDate = batteryManufactureDate
     }
 
     // MARK: - Computed properties
@@ -285,6 +302,49 @@ struct PowerData {
         return power
     }
 
+    var validAvgTimeToEmptyMinutes: Int? {
+        isValidBatteryTimeMinutes(avgTimeToEmptyMinutes)
+    }
+
+    var validAvgTimeToFullMinutes: Int? {
+        isValidBatteryTimeMinutes(avgTimeToFullMinutes)
+    }
+
+    /// Minutes until full when charging — prefers IOKit estimate, else energy-balance fallback.
+    private var estimatedTimeToFullMinutes: Int? {
+        if let minutes = validAvgTimeToFullMinutes { return minutes }
+        guard isBatteryCharging, batteryChargeRateW > 0.1,
+              let remaining = remainingCapacityMAH, let full = fullChargeCapacityMAH, full > remaining,
+              let voltage = batteryVoltageMV, voltage > 0 else { return nil }
+        let whToCharge = Double(full - remaining) * Double(voltage) / 1_000_000.0
+        guard whToCharge > 0 else { return nil }
+        return max(0, Int(whToCharge / batteryChargeRateW * 60.0))
+    }
+
+    var estimatedTimeRemainingMinutes: Int? {
+        if isBatteryCharging { return estimatedTimeToFullMinutes }
+        if !effectiveIsOnAC || isSupplementalDischarge { return validAvgTimeToEmptyMinutes }
+        return nil
+    }
+
+    var estimatedTimeRemainingText: String? {
+        guard let minutes = estimatedTimeRemainingMinutes else { return nil }
+        return Self.formatDuration(minutes: minutes)
+    }
+
+    var estimatedTimeRemainingLabel: String {
+        isBatteryCharging
+            ? String(localized: "Est. Time to Full")
+            : String(localized: "Est. Time to Empty")
+    }
+
+    private static func formatDuration(minutes: Int) -> String {
+        let hours = minutes / 60
+        let mins = minutes % 60
+        if hours > 0 { return "\(hours)h \(mins)m" }
+        return "\(mins)m"
+    }
+
     var notChargingReasonDescription: String? {
         guard let reason = notChargingReason, reason != 0 else { return nil }
         // Check individual bits/flags
@@ -319,7 +379,10 @@ struct PowerData {
         lifetimeMaxChargeCurrentMA: nil, lifetimeMaxDischargeCurrentMA: nil,
         batterySerial: nil, deviceName: nil,
         instantAmperageMA: nil, atCriticalLevel: nil,
-        permanentFailureStatus: nil, batteryCellDisconnectCount: nil
+        permanentFailureStatus: nil, batteryCellDisconnectCount: nil,
+        avgTimeToEmptyMinutes: nil, avgTimeToFullMinutes: nil,
+        remainingCapacityMAH: nil, fullChargeCapacityMAH: nil,
+        averageSystemPowerW: nil, batteryManufactureDate: nil
     ) // delegates to private init below (centralized)
 
     func withConnectionPhase(_ phase: PowerConnectionPhase) -> PowerData {
@@ -348,7 +411,10 @@ struct PowerData {
             batterySerial: batterySerial, deviceName: deviceName,
             instantAmperageMA: instantAmperageMA, atCriticalLevel: atCriticalLevel,
             permanentFailureStatus: permanentFailureStatus,
-            batteryCellDisconnectCount: batteryCellDisconnectCount
+            batteryCellDisconnectCount: batteryCellDisconnectCount,
+            avgTimeToEmptyMinutes: avgTimeToEmptyMinutes, avgTimeToFullMinutes: avgTimeToFullMinutes,
+            remainingCapacityMAH: remainingCapacityMAH, fullChargeCapacityMAH: fullChargeCapacityMAH,
+            averageSystemPowerW: averageSystemPowerW, batteryManufactureDate: batteryManufactureDate
         )
     }
 }

@@ -61,6 +61,12 @@
 "Charger Output Voltage" = "Charger Output Voltage";
 "Charger Output Current" = "Charger Output Current";
 "Estimation Mode — telemetry unavailable" = "Estimation Mode — telemetry unavailable";
+"Remaining Capacity" = "Remaining Capacity";
+"Est. Time to Empty" = "Est. Time to Empty";
+"Est. Time to Full" = "Est. Time to Full";
+"Average System Power" = "Average System Power";
+"Manufacture Date" = "Manufacture Date";
+"Manufacture Week Format" = "%d W%02d";
 
 // Detail - Battery Health
 "Battery Health" = "Battery Health";

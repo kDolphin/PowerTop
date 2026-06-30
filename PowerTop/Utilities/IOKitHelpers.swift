@@ -61,3 +61,36 @@ func extractIntArray(from dict: [String: Any], key: String) -> [Int]? {
     if let arr = value as? [NSNumber] { return arr.map { $0.intValue } }
     return nil
 }
+
+/// Parses YYWW manufacture code embedded in binary `ManufacturerData` (e.g. 1916 → 2019 W16).
+func parseBatteryManufactureDate(from props: [String: Any]) -> String? {
+    let raw = props["ManufacturerData"]
+    let data: Data?
+    if let blob = raw as? Data {
+        data = blob
+    } else if let blob = raw as? NSData {
+        data = blob as Data
+    } else {
+        return nil
+    }
+    guard let data, data.count >= 4 else { return nil }
+
+    let bytes = [UInt8](data)
+    for index in 0...(bytes.count - 4) {
+        let slice = bytes[index..<(index + 4)]
+        guard slice.allSatisfy({ (48...57).contains($0) }) else { continue }
+        guard let code = String(bytes: slice, encoding: .ascii) else { continue }
+        let yy = Int(code.prefix(2)) ?? 0
+        let ww = Int(code.suffix(2)) ?? 0
+        guard (10...40).contains(yy), (1...53).contains(ww) else { continue }
+        let year = 2000 + yy
+        return String(format: String(localized: "Manufacture Week Format"), year, ww)
+    }
+    return nil
+}
+
+/// macOS uses 65535 as an invalid sentinel for battery time estimates.
+func isValidBatteryTimeMinutes(_ minutes: Int?) -> Int? {
+    guard let minutes, minutes > 0, minutes < 65_535 else { return nil }
+    return minutes
+}
