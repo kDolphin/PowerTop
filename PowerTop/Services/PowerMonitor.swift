@@ -53,6 +53,7 @@ final class PowerMonitor {
     private var machinePhase: MachinePhase = .onBattery
     private var lastExternalConnected: Bool?
     private var lastUnplugEventAt: Date?
+    private var timeEstimator = BatteryTimeEstimator()
 
     init() {
         launchAtLogin = (SMAppService.mainApp.status == .enabled)
@@ -99,6 +100,7 @@ final class PowerMonitor {
     }
 
     func stop() {
+        timeEstimator.reset()
         timer?.invalidate()
         timer = nil
         cancelPendingRefreshes()
@@ -117,6 +119,7 @@ final class PowerMonitor {
     }
 
     private func handleSystemSleep() {
+        timeEstimator.reset()
         timer?.invalidate()
         timer = nil
     }
@@ -208,7 +211,9 @@ final class PowerMonitor {
 
     private func publishDisplayData(from raw: PowerData) {
         advanceMachinePhase(with: raw)
-        currentData = raw.withConnectionPhase(displayConnectionPhase())
+        let phased = raw.withConnectionPhase(displayConnectionPhase())
+        let smoothed = timeEstimator.smoothedPower(for: phased)
+        currentData = phased.withSmoothedPower(dischargeW: smoothed.dischargeW, chargeW: smoothed.chargeW)
         uiRefreshToken &+= 1
     }
 
@@ -392,7 +397,8 @@ final class PowerMonitor {
                 batteryCellDisconnectCount: cellDisconnectCount,
                 avgTimeToEmptyMinutes: avgTimeToEmpty, avgTimeToFullMinutes: avgTimeToFull,
                 remainingCapacityMAH: remainingCapacity, fullChargeCapacityMAH: fullChargeCapacityBD,
-                averageSystemPowerW: avgSysPowerW, batteryManufactureDate: manufactureDateStr
+                averageSystemPowerW: avgSysPowerW, batteryManufactureDate: manufactureDateStr,
+                smoothedDischargePowerW: nil, smoothedChargePowerW: nil
             )
         }
 

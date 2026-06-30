@@ -86,6 +86,11 @@ struct DetailWindowView: View {
 
             if let timeText = data.estimatedTimeRemainingText {
                 DetailRow(label: data.estimatedTimeRemainingLabel, value: timeText)
+                if data.estimatedTimeIsComputed {
+                    Text(String(localized: "Estimated from remaining energy and smoothed power (macOS no longer provides this)."))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
             }
 
             if data.effectiveIsOnAC && !data.isConnectingAC {

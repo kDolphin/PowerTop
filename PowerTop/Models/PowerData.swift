@@ -89,6 +89,9 @@ struct PowerData {
     let fullChargeCapacityMAH: Int?
     let averageSystemPowerW: Double?
     let batteryManufactureDate: String?
+    /// EMA-smoothed discharge/charge power for time estimates (set by PowerMonitor).
+    let smoothedDischargePowerW: Double?
+    let smoothedChargePowerW: Double?
 
     // Full memberwise init (package-internal; centralizes all assignments to avoid drift across call sites)
     init(
@@ -116,7 +119,8 @@ struct PowerData {
         permanentFailureStatus: Int?, batteryCellDisconnectCount: Int?,
         avgTimeToEmptyMinutes: Int?, avgTimeToFullMinutes: Int?,
         remainingCapacityMAH: Int?, fullChargeCapacityMAH: Int?,
-        averageSystemPowerW: Double?, batteryManufactureDate: String?
+        averageSystemPowerW: Double?, batteryManufactureDate: String?,
+        smoothedDischargePowerW: Double?, smoothedChargePowerW: Double?
     ) {
         self.systemPowerW = systemPowerW
         self.batteryPowerW = batteryPowerW
@@ -174,6 +178,8 @@ struct PowerData {
         self.fullChargeCapacityMAH = fullChargeCapacityMAH
         self.averageSystemPowerW = averageSystemPowerW
         self.batteryManufactureDate = batteryManufactureDate
+        self.smoothedDischargePowerW = smoothedDischargePowerW
+        self.smoothedChargePowerW = smoothedChargePowerW
     }
 
     // MARK: - Computed properties
@@ -329,21 +335,78 @@ struct PowerData {
         isValidBatteryTimeMinutes(avgTimeToFullMinutes)
     }
 
-    /// Minutes until full when charging — prefers IOKit estimate, else energy-balance fallback.
-    private var estimatedTimeToFullMinutes: Int? {
-        if let minutes = validAvgTimeToFullMinutes { return minutes }
-        guard isBatteryCharging, batteryChargeRateW > 0.1,
-              let remaining = remainingCapacityMAH, let full = fullChargeCapacityMAH, full > remaining,
+    /// Remaining stored energy (Wh) from coulomb count × pack voltage.
+    var remainingEnergyWh: Double? {
+        if let remaining = remainingCapacityMAH, let voltage = batteryVoltageMV, remaining > 0, voltage > 0 {
+            return Double(remaining) * Double(voltage) / 1_000_000.0
+        }
+        guard let capacity = fullChargeCapacityMAH ?? rawMaxCapacityMAH ?? nominalChargeCapacityMAH,
+              capacity > 0, let voltage = batteryVoltageMV, voltage > 0 else { return nil }
+        let soc = stateOfCharge ?? batteryPercent
+        guard soc > 0 else { return nil }
+        return Double(capacity) * Double(soc) / 100.0 * Double(voltage) / 1_000_000.0
+    }
+
+    /// Energy still needed to reach full charge (Wh).
+    var energyToFullWh: Double? {
+        guard isBatteryCharging, !fullyCharged else { return nil }
+        if let remaining = remainingCapacityMAH,
+           let full = fullChargeCapacityMAH ?? rawMaxCapacityMAH ?? nominalChargeCapacityMAH,
+           full > remaining,
+           let voltage = batteryVoltageMV, voltage > 0 {
+            return Double(full - remaining) * Double(voltage) / 1_000_000.0
+        }
+        guard let remaining = remainingEnergyWh,
+              let full = fullChargeCapacityMAH ?? rawMaxCapacityMAH ?? nominalChargeCapacityMAH,
               let voltage = batteryVoltageMV, voltage > 0 else { return nil }
-        let whToCharge = Double(full - remaining) * Double(voltage) / 1_000_000.0
-        guard whToCharge > 0 else { return nil }
-        return max(0, Int(whToCharge / batteryChargeRateW * 60.0))
+        let fullWh = Double(full) * Double(voltage) / 1_000_000.0
+        let delta = fullWh - remaining
+        return delta > 0 ? delta : nil
+    }
+
+    private var dischargePowerForEstimateW: Double? {
+        if let smoothed = smoothedDischargePowerW, smoothed >= 0.2 { return smoothed }
+        if isSupplementalDischarge {
+            let power = max(batterySupplementalW, systemPowerW)
+            return power >= 0.2 ? power : nil
+        }
+        if !effectiveIsOnAC {
+            return systemPowerW >= 0.2 ? systemPowerW : nil
+        }
+        return nil
+    }
+
+    private var chargePowerForEstimateW: Double? {
+        if let smoothed = smoothedChargePowerW, smoothed >= 0.2 { return smoothed }
+        let rate = batteryChargeRateW
+        return rate >= 0.2 ? rate : nil
+    }
+
+    private var computedTimeToEmptyMinutes: Int? {
+        guard !isConnectingAC, !isBatteryCharging else { return nil }
+        guard !effectiveIsOnAC || isSupplementalDischarge else { return nil }
+        guard let energyWh = remainingEnergyWh, let powerW = dischargePowerForEstimateW else { return nil }
+        return Self.minutesFromEnergy(energyWh: energyWh, powerW: powerW)
+    }
+
+    private var computedTimeToFullMinutes: Int? {
+        guard let energyWh = energyToFullWh, let powerW = chargePowerForEstimateW else { return nil }
+        return Self.minutesFromEnergy(energyWh: energyWh, powerW: powerW)
     }
 
     var estimatedTimeRemainingMinutes: Int? {
-        if isBatteryCharging { return estimatedTimeToFullMinutes }
-        if !effectiveIsOnAC || isSupplementalDischarge { return validAvgTimeToEmptyMinutes }
+        if isBatteryCharging { return validAvgTimeToFullMinutes ?? computedTimeToFullMinutes }
+        if !effectiveIsOnAC || isSupplementalDischarge {
+            return validAvgTimeToEmptyMinutes ?? computedTimeToEmptyMinutes
+        }
         return nil
+    }
+
+    /// True when macOS did not supply a valid AvgTimeTo* value and we used our own model.
+    var estimatedTimeIsComputed: Bool {
+        guard estimatedTimeRemainingMinutes != nil else { return false }
+        if isBatteryCharging { return validAvgTimeToFullMinutes == nil }
+        return validAvgTimeToEmptyMinutes == nil
     }
 
     var estimatedTimeRemainingText: String? {
@@ -362,6 +425,15 @@ struct PowerData {
         let mins = minutes % 60
         if hours > 0 { return "\(hours)h \(mins)m" }
         return "\(mins)m"
+    }
+
+    private static func minutesFromEnergy(energyWh: Double, powerW: Double) -> Int? {
+        guard powerW >= 0.2, energyWh > 0 else { return nil }
+        return cappedMinutes(Int((energyWh / powerW) * 60.0))
+    }
+
+    private static func cappedMinutes(_ minutes: Int) -> Int {
+        min(max(0, minutes), 99 * 60 + 59)
     }
 
     var notChargingReasonDescription: String? {
@@ -402,10 +474,23 @@ struct PowerData {
         permanentFailureStatus: nil, batteryCellDisconnectCount: nil,
         avgTimeToEmptyMinutes: nil, avgTimeToFullMinutes: nil,
         remainingCapacityMAH: nil, fullChargeCapacityMAH: nil,
-        averageSystemPowerW: nil, batteryManufactureDate: nil
+        averageSystemPowerW: nil, batteryManufactureDate: nil,
+        smoothedDischargePowerW: nil, smoothedChargePowerW: nil
     ) // delegates to private init below (centralized)
 
     func withConnectionPhase(_ phase: PowerConnectionPhase) -> PowerData {
+        withConnectionPhase(phase, smoothedDischargePowerW: smoothedDischargePowerW, smoothedChargePowerW: smoothedChargePowerW)
+    }
+
+    func withSmoothedPower(dischargeW: Double?, chargeW: Double?) -> PowerData {
+        withConnectionPhase(connectionPhase, smoothedDischargePowerW: dischargeW, smoothedChargePowerW: chargeW)
+    }
+
+    private func withConnectionPhase(
+        _ phase: PowerConnectionPhase,
+        smoothedDischargePowerW: Double?,
+        smoothedChargePowerW: Double?
+    ) -> PowerData {
         PowerData(
             systemPowerW: systemPowerW, batteryPowerW: batteryPowerW, acInputW: acInputW,
             acAdapterWattage: acAdapterWattage, batteryPercent: batteryPercent,
@@ -436,7 +521,8 @@ struct PowerData {
             batteryCellDisconnectCount: batteryCellDisconnectCount,
             avgTimeToEmptyMinutes: avgTimeToEmptyMinutes, avgTimeToFullMinutes: avgTimeToFullMinutes,
             remainingCapacityMAH: remainingCapacityMAH, fullChargeCapacityMAH: fullChargeCapacityMAH,
-            averageSystemPowerW: averageSystemPowerW, batteryManufactureDate: batteryManufactureDate
+            averageSystemPowerW: averageSystemPowerW, batteryManufactureDate: batteryManufactureDate,
+            smoothedDischargePowerW: smoothedDischargePowerW, smoothedChargePowerW: smoothedChargePowerW
         )
     }
 }
