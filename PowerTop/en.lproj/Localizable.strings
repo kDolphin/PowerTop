@@ -99,7 +99,6 @@
 "Series Group %d" = "Series Group %d";
 "Parallel Cell Currents" = "Parallel Cell Currents";
 "Series Group %d · Cell %d" = "Series Group %d · Cell %d";
-"Series group voltage and Qmax are reported identically by macOS on this machine." = "Series group voltage and Qmax are reported identically by macOS on this machine.";
 "Series group Qmax is the parallel pair's estimated full-charge capacity (mAh), not derived from cell currents." = "Series group Qmax is the parallel pair's estimated full-charge capacity (mAh), not derived from cell currents.";
 "Qmax %d mAh" = "Qmax %d mAh";
 "Instantaneous current per parallel cell; unequal split within a group is normal." = "Instantaneous current per parallel cell; unequal split within a group is normal.";

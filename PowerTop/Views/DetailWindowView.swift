@@ -295,13 +295,6 @@ struct DetailWindowView: View {
                         value: seriesGroupSummary(voltageMV: entry.voltageMV, qmaxMAH: entry.qmaxMAH)
                     )
                 }
-                if allSeriesGroupsIdentical {
-                    Text(String(localized: "Series group voltage and Qmax are reported identically by macOS on this machine."))
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                        .padding(.top, 2)
-                }
-
                 if let currents = data.batteryParallelCellCurrents, !currents.isEmpty {
                     DetailSubheading(String(localized: "Parallel Cell Currents"))
                     Text(String(localized: "Instantaneous current per parallel cell; unequal split within a group is normal."))
@@ -453,21 +446,6 @@ struct DetailWindowView: View {
 
     private var seriesGroupEntries: [(voltageMV: Int?, qmaxMAH: Int?)] {
         cellDisplayEntries
-    }
-
-    private var allSeriesGroupsIdentical: Bool {
-        guard usesSeriesParallelLayout, let voltages = data.cellVoltagesMV, voltages.count > 1 else {
-            return false
-        }
-        guard let first = voltages.first else { return false }
-        let voltagesMatch = voltages.allSatisfy { $0 == first }
-        let qmaxMatch: Bool = {
-            guard let qmax = data.qmaxMAH, qmax.count == voltages.count, let firstQ = qmax.first else {
-                return false
-            }
-            return qmax.allSatisfy { $0 == firstQ }
-        }()
-        return voltagesMatch && qmaxMatch
     }
 
     private var cellDisplayEntries: [(voltageMV: Int?, qmaxMAH: Int?)] {

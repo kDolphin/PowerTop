@@ -99,7 +99,6 @@
 "Series Group %d" = "串联组 %d";
 "Parallel Cell Currents" = "并联节电流";
 "Series Group %d · Cell %d" = "串联组 %d · 并联节 %d";
-"Series group voltage and Qmax are reported identically by macOS on this machine." = "macOS 在此机型上对各串联组报告的电压与 Qmax 相同。";
 "Series group Qmax is the parallel pair's estimated full-charge capacity (mAh), not derived from cell currents." = "串联组 Qmax 是并联对的满充容量估计（mAh），与下方瞬时电流无关。";
 "Qmax %d mAh" = "Qmax %d mAh";
 "Instantaneous current per parallel cell; unequal split within a group is normal." = "各并联节的瞬时电流；同组内两节电流不均是正常现象。";
