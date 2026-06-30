@@ -74,25 +74,17 @@ open build/PowerTop.app
 
 ### Popover
 
-**AC Powered**
+| **AC Powered** | **Battery Discharging** (menu bar power enabled) |
+|----------------|--------------------------------------------------|
+| <a href="screenshot/popover-ac-powered.png" target="_blank"><img src="screenshot/popover-ac-powered.png" width="260" alt="AC Powered"></a> | <a href="screenshot/popover-battery-discharging.png" target="_blank"><img src="screenshot/popover-battery-discharging.png" width="260" alt="Battery Discharging"></a> |
 
-![AC Powered](screenshot/popover-ac-powered.png)
-
-**Battery Discharging** (menu bar power enabled)
-
-![Battery Discharging](screenshot/popover-battery-discharging.png)
-
-**AC Charging**
-
-![AC Charging](screenshot/popover-ac-charging.png)
-
-**AC + Battery Supplement** (battery assisting under high load)
-
-![AC + Battery Supplement](screenshot/popover-ac-supplement.png)
+| **AC Charging** | **AC + Battery Supplement** (battery assisting under high load) |
+|-----------------|-----------------------------------------------------------------|
+| <a href="screenshot/popover-ac-charging.png" target="_blank"><img src="screenshot/popover-ac-charging.png" width="260" alt="AC Charging"></a> | <a href="screenshot/popover-ac-supplement.png" target="_blank"><img src="screenshot/popover-ac-supplement.png" width="260" alt="AC + Battery Supplement"></a> |
 
 ### Detail Window
 
-![PowerTop Details](screenshot/detail-window.png)
+<a href="screenshot/detail-window.png" target="_blank"><img src="screenshot/detail-window.png" width="420" alt="PowerTop Details"></a>
 
 ## What's New
 

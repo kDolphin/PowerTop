@@ -74,25 +74,17 @@ open build/PowerTop.app
 
 ### 弹出窗口
 
-**AC 供电**
+| **AC 供电** | **电池放电**（已开启菜单栏功率显示） |
+|-------------|-------------------------------------|
+| <a href="screenshot/popover-ac-powered.png" target="_blank"><img src="screenshot/popover-ac-powered.png" width="260" alt="AC 供电"></a> | <a href="screenshot/popover-battery-discharging.png" target="_blank"><img src="screenshot/popover-battery-discharging.png" width="260" alt="电池放电"></a> |
 
-![AC 供电](screenshot/popover-ac-powered.png)
-
-**电池放电**（已开启菜单栏功率显示）
-
-![电池放电](screenshot/popover-battery-discharging.png)
-
-**AC 充电中**
-
-![AC 充电中](screenshot/popover-ac-charging.png)
-
-**AC + 电池补充供电**（高负载下电池协助）
-
-![AC + 电池补充供电](screenshot/popover-ac-supplement.png)
+| **AC 充电中** | **AC + 电池补充供电**（高负载下电池协助） |
+|---------------|------------------------------------------|
+| <a href="screenshot/popover-ac-charging.png" target="_blank"><img src="screenshot/popover-ac-charging.png" width="260" alt="AC 充电中"></a> | <a href="screenshot/popover-ac-supplement.png" target="_blank"><img src="screenshot/popover-ac-supplement.png" width="260" alt="AC + 电池补充供电"></a> |
 
 ### 详细参数窗口
 
-![PowerTop 详细参数](screenshot/detail-window.png)
+<a href="screenshot/detail-window.png" target="_blank"><img src="screenshot/detail-window.png" width="420" alt="PowerTop 详细参数"></a>
 
 ## 更新内容
 
