@@ -85,7 +85,9 @@ open build/PowerTop.app
 
 ### Detail Window
 
-<a href="screenshot/detail-window.png" target="_blank"><img src="screenshot/detail-window.png" width="420" alt="PowerTop Details"></a>
+| **Power & Battery Health** | **Cell Data** |
+|----------------------------|---------------|
+| <a href="screenshot/detail-window-health.png" target="_blank"><img src="screenshot/detail-window-health.png" width="400" alt="Power and battery health"></a> | <a href="screenshot/detail-window-cells.png" target="_blank"><img src="screenshot/detail-window-cells.png" width="400" alt="Cell topology and balance"></a> |
 
 ## What's New
 

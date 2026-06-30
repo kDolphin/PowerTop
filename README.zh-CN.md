@@ -85,7 +85,9 @@ open build/PowerTop.app
 
 ### 详细参数窗口
 
-<a href="screenshot/detail-window.png" target="_blank"><img src="screenshot/detail-window.png" width="420" alt="PowerTop 详细参数"></a>
+| **功率与电池健康** | **电芯数据** |
+|---------------------|---------------|
+| <a href="screenshot/detail-window-health.png" target="_blank"><img src="screenshot/detail-window-health.png" width="400" alt="功率与电池健康"></a> | <a href="screenshot/detail-window-cells.png" target="_blank"><img src="screenshot/detail-window-cells.png" width="400" alt="电芯拓扑与均衡"></a> |
 
 ## 更新内容
 
