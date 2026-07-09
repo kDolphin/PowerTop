@@ -287,7 +287,7 @@ struct DetailWindowView: View {
     // MARK: - Additional sections
 
     private var cellDataSection: some View {
-        DetailSection(title: String(localized: "Cell Data"), icon: "cylinder.split.1.raised", color: .cyan) {
+        DetailSection(title: String(localized: "Cell Data"), icon: "battery.100", color: .cyan) {
             if let topology = cellTopologyDescription {
                 Text(topology)
                     .font(.system(size: 11))
