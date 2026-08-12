@@ -72,7 +72,6 @@
 "Estimated from remaining energy and smoothed power (macOS no longer provides this)." = "根据剩余电量与平滑功耗估算（macOS 已不再提供此数据）。";
 "Average System Power" = "平均系统功耗";
 "Manufacture Date" = "制造日期";
-"Manufacture Week Format" = "%d 年第 %02d 周";
 
 // Detail - Battery Health
 "Battery Health" = "电池健康";

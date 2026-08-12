@@ -341,7 +341,7 @@ final class PowerMonitor {
             ?? extractInt(from: props, key: "AvgTimeToEmpty")
         let avgTimeToFull = batteryData.flatMap { extractInt(from: $0, key: "AvgTimeToFull") }
             ?? extractInt(from: props, key: "AvgTimeToFull")
-        let manufactureDateStr = parseBatteryManufactureDate(from: props)
+        let manufactureDateStr = readBatteryManufactureDate(from: props)
 
         // LifetimeData
         let lifetimeData = batteryData.flatMap { extractDict(from: $0, key: "LifetimeData") }
