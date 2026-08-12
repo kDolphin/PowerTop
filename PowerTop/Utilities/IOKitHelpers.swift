@@ -62,82 +62,75 @@ func extractIntArray(from dict: [String: Any], key: String) -> [Int]? {
     return nil
 }
 
-/// Parses YYWW manufacture code from binary `ManufacturerData` (e.g. 1916 → 2019 W16).
+/// Reads a date only from explicit `ManufactureDate` properties.
 ///
-/// Apple Silicon packs typically store length-prefixed ASCII fields, e.g.
-/// `0x04 "1916"  0x03 "002"  0x03 "ATL"`. Prefer those over a raw digit scan so
-/// unrelated 4-digit runs (which produced bogus dates like 2035-W14 on some M5 packs)
-/// are not treated as manufacture week.
-func parseBatteryManufactureDate(from props: [String: Any]) -> String? {
-    let raw = props["ManufacturerData"]
-    let data: Data?
-    if let blob = raw as? Data {
-        data = blob
-    } else if let blob = raw as? NSData {
-        data = blob as Data
-    } else {
+/// `ManufacturerData` is manufacturer-defined data and must not be interpreted as a date.
+func readBatteryManufactureDate(from batteryProperties: [String: Any]) -> String? {
+    if let date = parseBatteryManufactureDate(from: batteryProperties) {
+        return date
+    }
+    guard let packProperties = getIOServiceProperties(className: "AppleSmartBatteryPack") else {
         return nil
     }
-    guard let data, data.count >= 4 else { return nil }
-
-    let bytes = [UInt8](data)
-    let maxYear = Calendar.current.component(.year, from: Date()) + 1
-
-    // 1) Length-prefixed printable ASCII fields (preferred).
-    if let formatted = manufactureDateFromLengthPrefixedFields(bytes, maxYear: maxYear) {
-        return formatted
-    }
-
-    // 2) Fallback: scan consecutive digits with the same year/week sanity checks.
-    if let formatted = manufactureDateFromDigitScan(bytes, maxYear: maxYear) {
-        return formatted
-    }
-
-    return nil
+    return parseBatteryManufactureDate(from: packProperties)
 }
 
-/// Walk length-prefixed ASCII fields (`u8 length` + payload) and use the first valid YYWW.
-private func manufactureDateFromLengthPrefixedFields(_ bytes: [UInt8], maxYear: Int) -> String? {
-    var index = 0
-    while index < bytes.count {
-        let length = Int(bytes[index])
-        // Real pack strings are short (YYWW / rev / vendor); ignore absurd lengths.
-        if (1...16).contains(length), index + 1 + length <= bytes.count {
-            let payload = Array(bytes[(index + 1)..<(index + 1 + length)])
-            if payload.allSatisfy({ (32...126).contains($0) }) {
-                if length == 4, let formatted = manufactureWeekString(fromASCIIDigits: payload, maxYear: maxYear) {
-                    return formatted
-                }
-                index += 1 + length
-                continue
-            }
-        }
-        index += 1
+func parseBatteryManufactureDate(from properties: [String: Any]) -> String? {
+    let batteryData = extractDict(from: properties, key: "BatteryData")
+    guard let encodedDate = extractInt(from: properties, key: "ManufactureDate")
+        ?? batteryData.flatMap({ extractInt(from: $0, key: "ManufactureDate") }) else {
+        return nil
     }
-    return nil
+    return formatBatteryManufactureDate(encodedDate)
 }
 
-/// Sliding window over four ASCII digits — only after TLV parse fails.
-private func manufactureDateFromDigitScan(_ bytes: [UInt8], maxYear: Int) -> String? {
-    guard bytes.count >= 4 else { return nil }
-    for index in 0...(bytes.count - 4) {
-        let slice = Array(bytes[index..<(index + 4)])
-        if let formatted = manufactureWeekString(fromASCIIDigits: slice, maxYear: maxYear) {
-            return formatted
-        }
-    }
-    return nil
-}
+/// Decodes the six reversed ASCII digits used by recent Apple Silicon battery packs.
+///
+/// The decoded digits are `YYMMDD`, where `YY` is years since 1992. Apple does not
+/// document this representation, so reject values that are not exact, valid, and non-future.
+func formatBatteryManufactureDate(
+    _ encodedDate: Int,
+    relativeTo currentDate: Date = Date()
+) -> String? {
+    guard encodedDate > 0 else { return nil }
+    let rawValue = UInt64(encodedDate)
+    guard rawValue <= 0xFFFF_FFFF_FFFF else { return nil }
 
-/// Interprets four ASCII digit bytes as YYWW when year/week are plausible.
-private func manufactureWeekString(fromASCIIDigits digits: [UInt8], maxYear: Int) -> String? {
-    guard digits.count == 4, digits.allSatisfy({ (48...57).contains($0) }) else { return nil }
-    guard let code = String(bytes: digits, encoding: .ascii) else { return nil }
-    guard let yy = Int(code.prefix(2)), let ww = Int(code.suffix(2)) else { return nil }
-    let year = 2000 + yy
-    // Apple Silicon MacBook packs: not before ~2010; reject far-future garbage (e.g. 2035).
-    guard (2010...maxYear).contains(year), (1...53).contains(ww) else { return nil }
-    return String(format: String(localized: "Manufacture Week Format"), year, ww)
+    func asciiDigit(at shift: Int) -> Int? {
+        let byte = UInt8((rawValue >> shift) & 0xFF)
+        guard (48...57).contains(byte) else { return nil }
+        return Int(byte - 48)
+    }
+
+    guard let yearTens = asciiDigit(at: 0),
+          let yearOnes = asciiDigit(at: 8),
+          let monthTens = asciiDigit(at: 16),
+          let monthOnes = asciiDigit(at: 24),
+          let dayTens = asciiDigit(at: 32),
+          let dayOnes = asciiDigit(at: 40) else {
+        return nil
+    }
+
+    let year = 1992 + yearTens * 10 + yearOnes
+    let month = monthTens * 10 + monthOnes
+    let day = dayTens * 10 + dayOnes
+
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = .current
+    var components = DateComponents()
+    components.calendar = calendar
+    components.timeZone = calendar.timeZone
+    components.year = year
+    components.month = month
+    components.day = day
+
+    guard let date = calendar.date(from: components), date <= currentDate else { return nil }
+    let validated = calendar.dateComponents([.year, .month, .day], from: date)
+    guard validated.year == year, validated.month == month, validated.day == day else {
+        return nil
+    }
+
+    return String(format: "%04d-%02d-%02d", year, month, day)
 }
 
 /// Capacity and health fields from `AppleSmartBattery`; many values live under `BatteryData` on Apple Silicon.
