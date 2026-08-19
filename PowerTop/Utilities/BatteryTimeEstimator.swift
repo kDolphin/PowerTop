@@ -70,7 +70,7 @@ struct BatteryTimeEstimator {
 
     private func instantDischargePowerW(for data: PowerData) -> Double {
         if data.isSupplementalDischarge {
-            return max(data.batterySupplementalW, data.systemPowerW)
+            return data.batterySupplementalW
         }
         return data.systemPowerW
     }

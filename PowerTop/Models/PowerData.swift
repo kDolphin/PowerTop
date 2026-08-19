@@ -390,8 +390,8 @@ struct PowerData {
     private var dischargePowerForEstimateW: Double? {
         if let smoothed = smoothedDischargePowerW, smoothed >= 0.2 { return smoothed }
         if isSupplementalDischarge {
-            let power = max(batterySupplementalW, systemPowerW)
-            return power >= 0.2 ? power : nil
+            // Only battery outflow drains the pack; system load includes AC contribution.
+            return batterySupplementalW >= 0.2 ? batterySupplementalW : nil
         }
         if !effectiveIsOnAC {
             return systemPowerW >= 0.2 ? systemPowerW : nil
