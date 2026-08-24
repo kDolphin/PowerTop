@@ -5,7 +5,6 @@ struct PopoverView: View {
 
     let monitor: PowerMonitor
     var openDetails: (() -> Void)? = nil
-    @Environment(\.openWindow) private var openWindow
 
     private var data: PowerData { monitor.currentData }
 
@@ -427,15 +426,10 @@ struct PopoverView: View {
             return
         }
         let detailTitle = String(localized: "PowerTop Details")
-        for window in NSApp.windows {
-            if window.title == detailTitle {
-                window.makeKeyAndOrderFront(nil)
-                NSApp.activate(ignoringOtherApps: true)
-                return
-            }
+        if let window = NSApp.windows.first(where: { $0.title == detailTitle }) {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
         }
-        openWindow(id: "detail")
-        NSApp.activate(ignoringOtherApps: true)
     }
 }
 

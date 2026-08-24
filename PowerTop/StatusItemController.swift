@@ -1,18 +1,14 @@
 import AppKit
 import SwiftUI
 
-extension Notification.Name {
-    static let powerTopOpenDetails = Notification.Name("powerTopOpenDetails")
-}
-
 /// Menu bar extra implemented as NSStatusItem + NSPopover (system chrome, intrinsic size).
 @MainActor
-final class StatusItemController: NSObject, NSPopoverDelegate {
+final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate {
     private let monitor: PowerMonitor
     private let statusItem: NSStatusItem
     private let labelHost: NSHostingView<MenuBarLabelView>
     private let popover = NSPopover()
-    private var eventMonitor: Any?
+    private var detailWindow: NSWindow?
 
     init(monitor: PowerMonitor) {
         self.monitor = monitor
@@ -22,16 +18,14 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         configureStatusItem()
         configurePopover()
         startObservingMonitor()
-        installClickMonitor()
         updateStatusItemLayout()
     }
 
     func invalidate() {
-        if let eventMonitor {
-            NSEvent.removeMonitor(eventMonitor)
-            self.eventMonitor = nil
-        }
         popover.performClose(nil)
+        detailWindow?.delegate = nil
+        detailWindow?.close()
+        detailWindow = nil
         NSStatusBar.system.removeStatusItem(statusItem)
     }
 
@@ -43,7 +37,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         labelHost.translatesAutoresizingMaskIntoConstraints = true
         labelHost.autoresizingMask = [.width, .height]
         button.addSubview(labelHost)
-        button.sendAction(on: [.leftMouseUp])
+        // Mouse-down + deferred show: a mouse-up on a transient popover is otherwise
+        // treated as an outside click and the panel flashes closed immediately.
+        button.sendAction(on: [.leftMouseDown])
         button.target = self
         button.action = #selector(statusItemClicked)
     }
@@ -97,7 +93,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            showPopover()
+            DispatchQueue.main.async { [weak self] in
+                self?.showPopover()
+            }
         }
     }
 
@@ -125,25 +123,22 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     func openDetails() {
         popover.performClose(nil)
         NSApp.activate(ignoringOtherApps: true)
-        let detailTitle = String(localized: "PowerTop Details")
-        if let window = NSApp.windows.first(where: { $0.title == detailTitle }) {
-            window.makeKeyAndOrderFront(nil)
-            return
+        if detailWindow == nil {
+            let hosting = NSHostingController(rootView: DetailWindowView(monitor: monitor))
+            let window = NSWindow(contentViewController: hosting)
+            window.title = String(localized: "PowerTop Details")
+            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.setContentSize(NSSize(width: DetailWindowView.preferredWidth, height: 640))
+            window.isReleasedWhenClosed = false
+            window.delegate = self
+            detailWindow = window
         }
-        NotificationCenter.default.post(name: .powerTopOpenDetails, object: nil)
+        detailWindow?.makeKeyAndOrderFront(nil)
     }
 
-    /// Swallow the status-item click that would reopen a transient popover just closed by the same click.
-    private func installClickMonitor() {
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            guard let self, let button = self.statusItem.button else { return event }
-            guard event.window === button.window else { return event }
-            if self.popover.isShown {
-                self.popover.performClose(nil)
-                return nil
-            }
-            return event
-        }
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        sender.orderOut(nil)
+        return false
     }
 
     func popoverDidClose(_ notification: Notification) {
