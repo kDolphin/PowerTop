@@ -6,19 +6,19 @@ import SwiftUI
 final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate {
     private let monitor: PowerMonitor
     private let statusItem: NSStatusItem
-    private let labelHost: NSHostingView<MenuBarLabelView>
     private let popover = NSPopover()
     private var detailWindow: NSWindow?
+    /// Skip redundant status-item layout; rewriting length/title every 2s shifts the item.
+    private var renderedSignature: String = ""
 
     init(monitor: PowerMonitor) {
         self.monitor = monitor
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        labelHost = NSHostingView(rootView: MenuBarLabelView(monitor: monitor))
         super.init()
         configureStatusItem()
         configurePopover()
         startObservingMonitor()
-        updateStatusItemLayout()
+        updateStatusItem()
     }
 
     func invalidate() {
@@ -31,12 +31,8 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
 
     private func configureStatusItem() {
         guard let button = statusItem.button else { return }
-        button.imagePosition = .noImage
-        button.title = ""
-        button.subviews.forEach { $0.removeFromSuperview() }
-        labelHost.translatesAutoresizingMaskIntoConstraints = true
-        labelHost.autoresizingMask = [.width, .height]
-        button.addSubview(labelHost)
+        button.imagePosition = .imageLeading
+        button.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         // Mouse-down + deferred show: a mouse-up on a transient popover is otherwise
         // treated as an outside click and the panel flashes closed immediately.
         button.sendAction(on: [.leftMouseDown])
@@ -70,23 +66,56 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
             _ = monitor.uiRefreshToken
             _ = monitor.showPowerInMenuBar
             _ = monitor.isDataAvailable
-            _ = monitor.currentData.menuBarPowerShowsWarning
+            _ = monitor.currentData.menuBarPowerText
             _ = monitor.currentData.effectiveIsOnAC
         } onChange: { [weak self] in
             Task { @MainActor in
-                self?.updateStatusItemLayout()
+                self?.updateStatusItem()
                 self?.observeMonitor()
             }
         }
     }
 
-    private func updateStatusItemLayout() {
-        labelHost.rootView = MenuBarLabelView(monitor: monitor)
-        let width = MenuBarLabelView.preferredWidth(for: monitor)
-        let buttonHeight = statusItem.button?.bounds.height ?? 0
-        let height = buttonHeight > 1 ? buttonHeight : 22
-        labelHost.frame = NSRect(x: 0, y: 0, width: width, height: height)
-        statusItem.length = width
+    private func statusSignature() -> String {
+        if !monitor.isDataAvailable { return "nodata" }
+        if monitor.showPowerInMenuBar {
+            return "power:\(monitor.currentData.menuBarPowerText)"
+        }
+        return monitor.currentData.effectiveIsOnAC ? "icon:ac" : "icon:battery"
+    }
+
+    private func updateStatusItem() {
+        let signature = statusSignature()
+        guard signature != renderedSignature else { return }
+        renderedSignature = signature
+
+        guard let button = statusItem.button else { return }
+
+        if !monitor.isDataAvailable {
+            applySymbol(named: "exclamationmark.triangle", on: button)
+            button.title = ""
+            return
+        }
+
+        if monitor.showPowerInMenuBar {
+            button.image = nil
+            button.imagePosition = .noImage
+            button.title = monitor.currentData.menuBarPowerText
+            return
+        }
+
+        button.title = ""
+        applySymbol(
+            named: monitor.currentData.effectiveIsOnAC ? "bolt.fill" : "battery.50",
+            on: button
+        )
+    }
+
+    private func applySymbol(named name: String, on button: NSStatusBarButton) {
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        image?.isTemplate = true
+        button.image = image
+        button.imagePosition = .imageOnly
     }
 
     @objc private func statusItemClicked() {
@@ -107,8 +136,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
                 applyPopoverSize(fitted)
             }
         }
+        // Do not make the popover key: that emphasizes the status item text
+        // and it can stick when activating a window on another display.
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
     }
 
     private func applyPopoverSize(_ size: CGSize) {
