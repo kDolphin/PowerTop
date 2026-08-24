@@ -23,6 +23,14 @@ struct MenuBarLabelView: View {
         }
     }
 
-    private static let powerTextWidth: CGFloat = 30
-    private static let warningPowerTextWidth: CGFloat = 46
+    static let powerTextWidth: CGFloat = 30
+    static let warningPowerTextWidth: CGFloat = 46
+
+    static func preferredWidth(for monitor: PowerMonitor) -> CGFloat {
+        if !monitor.isDataAvailable { return 22 }
+        if monitor.showPowerInMenuBar {
+            return monitor.currentData.menuBarPowerShowsWarning ? warningPowerTextWidth : powerTextWidth
+        }
+        return 22
+    }
 }
