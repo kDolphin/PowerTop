@@ -10,6 +10,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
     private var detailWindow: NSWindow?
     /// Skip redundant status-item layout; rewriting length/title every 2s shifts the item.
     private var renderedSignature: String = ""
+    /// Accessory apps often don't resign key, so `.transient` misses outside clicks on macOS 15/26.
+    private var localClickMonitor: Any?
+    private var globalClickMonitor: Any?
 
     init(monitor: PowerMonitor) {
         self.monitor = monitor
@@ -22,6 +25,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
     }
 
     func invalidate() {
+        stopDismissMonitors()
         popover.performClose(nil)
         detailWindow?.delegate = nil
         detailWindow?.close()
@@ -139,6 +143,50 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
         // Do not make the popover key: that emphasizes the status item text
         // and it can stick when activating a window on another display.
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        startDismissMonitors()
+    }
+
+    private func startDismissMonitors() {
+        stopDismissMonitors()
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown]
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+            Task { @MainActor in
+                self?.dismissPopoverIfClickIsOutside()
+            }
+            return event
+        }
+        globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in
+            Task { @MainActor in
+                self?.dismissPopoverIfClickIsOutside()
+            }
+        }
+    }
+
+    private func stopDismissMonitors() {
+        if let localClickMonitor {
+            NSEvent.removeMonitor(localClickMonitor)
+            self.localClickMonitor = nil
+        }
+        if let globalClickMonitor {
+            NSEvent.removeMonitor(globalClickMonitor)
+            self.globalClickMonitor = nil
+        }
+    }
+
+    private func dismissPopoverIfClickIsOutside() {
+        guard popover.isShown else { return }
+        let point = NSEvent.mouseLocation
+        if let popoverWindow = popover.contentViewController?.view.window,
+           popoverWindow.frame.contains(point) {
+            return
+        }
+        if let button = statusItem.button, let buttonWindow = button.window {
+            let buttonRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+            if buttonRect.contains(point) {
+                return
+            }
+        }
+        popover.performClose(nil)
     }
 
     private func applyPopoverSize(_ size: CGSize) {
@@ -172,6 +220,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
     }
 
     func popoverDidClose(_ notification: Notification) {
+        stopDismissMonitors()
         statusItem.button?.highlight(false)
     }
 }

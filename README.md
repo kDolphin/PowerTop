@@ -5,7 +5,7 @@
 A clean, lightweight menu bar app that shows you exactly how much power your MacBook is using.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.4.1-blue" />
+  <img src="https://img.shields.io/badge/version-1.4.2-blue" />
   <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue" />
   <img src="https://img.shields.io/badge/architecture-Apple%20Silicon-green" />
   <img src="https://img.shields.io/badge/license-MIT-orange" />
@@ -90,6 +90,10 @@ open build/PowerTop.app
 | <a href="screenshot/detail-window-health.png" target="_blank"><img src="screenshot/detail-window-health.png" width="400" alt="Power and battery health"></a> | <a href="screenshot/detail-window-cells.png" target="_blank"><img src="screenshot/detail-window-cells.png" width="400" alt="Cell topology and balance"></a> |
 
 ## What's New
+
+### v1.4.2
+
+- **Popover dismiss** — Clicking outside the panel closes it on macOS 15/26 as well (status-item popovers in menu-bar apps often miss system `.transient` dismiss; issue #13)
 
 ### v1.4.1
 
