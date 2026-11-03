@@ -13,6 +13,8 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
     /// Accessory apps often don't resign key, so `.transient` misses outside clicks on macOS 15/26.
     private var localClickMonitor: Any?
     private var globalClickMonitor: Any?
+    private var anchorObservers: [NSObjectProtocol] = []
+    private var reanchorPending = false
 
     init(monitor: PowerMonitor) {
         self.monitor = monitor
@@ -26,6 +28,8 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
 
     func invalidate() {
         stopDismissMonitors()
+        anchorObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        anchorObservers.removeAll()
         popover.performClose(nil)
         detailWindow?.delegate = nil
         detailWindow?.close()
@@ -42,6 +46,24 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
         button.sendAction(on: [.leftMouseDown])
         button.target = self
         button.action = #selector(statusItemClicked)
+        button.postsFrameChangedNotifications = true
+        let center = NotificationCenter.default
+        anchorObservers.append(center.addObserver(
+            forName: NSView.frameDidChangeNotification,
+            object: button,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.scheduleReanchor() }
+        })
+        if let window = button.window {
+            anchorObservers.append(center.addObserver(
+                forName: NSWindow.didMoveNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.scheduleReanchor() }
+            })
+        }
     }
 
     private func configurePopover() {
@@ -71,6 +93,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
             _ = monitor.showPowerInMenuBar
             _ = monitor.isDataAvailable
             _ = monitor.currentData.menuBarPowerText
+            _ = monitor.currentData.batteryPercent
             _ = monitor.currentData.effectiveIsOnAC
         } onChange: { [weak self] in
             Task { @MainActor in
@@ -89,15 +112,17 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
     }
 
     private func updateStatusItem() {
+        guard let button = statusItem.button else { return }
+        applyTooltip(on: button)
+
         let signature = statusSignature()
         guard signature != renderedSignature else { return }
         renderedSignature = signature
 
-        guard let button = statusItem.button else { return }
-
         if !monitor.isDataAvailable {
             applySymbol(named: "exclamationmark.triangle", on: button)
             button.title = ""
+            applyCompactLength(on: button)
             return
         }
 
@@ -105,6 +130,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
             button.image = nil
             button.imagePosition = .noImage
             button.title = monitor.currentData.menuBarPowerText
+            applyCompactLength(on: button)
             return
         }
 
@@ -113,6 +139,30 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
             named: monitor.currentData.effectiveIsOnAC ? "bolt.fill" : "battery.50",
             on: button
         )
+        applyCompactLength(on: button)
+    }
+
+    private func applyTooltip(on button: NSStatusBarButton) {
+        let tip: String
+        if monitor.isDataAvailable {
+            tip = "PowerTop · \(monitor.currentData.batteryPercent)% · \(monitor.currentData.menuBarPowerText)"
+        } else {
+            tip = String(localized: "Built-in battery not detected. PowerTop requires a MacBook.")
+        }
+        button.toolTip = tip
+        button.setAccessibilityLabel(tip)
+    }
+
+    /// Size the status item to the drawn title/icon instead of a fixed 30/46 pt slot.
+    private func applyCompactLength(on button: NSStatusBarButton) {
+        let font = button.font ?? NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        let textWidth = (button.title as NSString).size(withAttributes: [.font: font]).width
+        let imageWidth = button.image?.size.width ?? 0
+        let gap: CGFloat = textWidth > 0 && imageWidth > 0 ? 4 : 0
+        let compactWidth = max(24, ceil(textWidth + imageWidth + gap) + 4)
+        guard abs(statusItem.length - compactWidth) > 0.5 else { return }
+        statusItem.length = compactWidth
+        scheduleReanchor()
     }
 
     private func applySymbol(named name: String, on button: NSStatusBarButton) {
@@ -120,6 +170,20 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
         image?.isTemplate = true
         button.image = image
         button.imagePosition = .imageOnly
+    }
+
+    /// Re-anchor an open popover after the status item moves or changes width.
+    private func scheduleReanchor() {
+        guard popover.isShown, !reanchorPending else { return }
+        reanchorPending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.reanchorPending = false
+            guard self.popover.isShown, let button = self.statusItem.button else { return }
+            button.window?.contentView?.layoutSubtreeIfNeeded()
+            self.popover.positioningRect = button.bounds
+            self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
     }
 
     @objc private func statusItemClicked() {
@@ -196,6 +260,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate, NSWindowDelegate 
         guard abs(popover.contentSize.width - next.width) > 0.5
             || abs(popover.contentSize.height - next.height) > 0.5 else { return }
         popover.contentSize = next
+        scheduleReanchor()
     }
 
     func openDetails() {
