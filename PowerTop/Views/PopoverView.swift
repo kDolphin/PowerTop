@@ -275,8 +275,7 @@ struct PopoverView: View {
                     icon: "bolt.fill",
                     iconColor: .green,
                     label: String(localized: "Charger Spec"),
-                    value: "\(data.acAdapterWattage) W" + (data.adapterDescription.map { " (\($0))" } ?? ""),
-                    wrapsValue: data.adapterDescription != nil
+                    value: "\(data.acAdapterWattage) W" + (data.adapterDescription.map { " (\($0))" } ?? "")
                 )
             }
 
